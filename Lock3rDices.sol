@@ -1,1843 +1,2247 @@
-pragma solidity ^0.5.16;
 
-contract CTokenStorages {
-    /**
-     * @dev Guard variable for re-entrancy checks
-     */
-    bool internal _notEntered;
+pragma solidity ^0.4.24;
 
-    /**
-     * @notice EIP-20 token name for this token
-     */
-    string public name;
+// <ORACLIZE_API>
+/*
+Copyright (c) 2015-2016 Oraclize SRL
+Copyright (c) 2016 Oraclize LTD
 
-    /**
-     * @notice EIP-20 token symbol for this token
-     */
-    string public symbol;
 
-    /**
-     * @notice EIP-20 token decimals for this token
-     */
-    uint8 public decimals;
 
-    /**
-     * @notice Maximum fraction of interest that can be set aside for reserves
-     */
-    uint internal constant reserveFactorMaxMantissa = 1e18;
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-    /**
-     * @notice Administrator for this contract
-     */
-    address payable public admin;
 
-    /**
-     * @notice Pending administrator for this contract
-     */
-    address payable public pendingAdmin;
 
-    /**
-     * @notice Fraction of interest currently set aside for reserves
-     */
-    uint public reserveFactorMantissa;
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
-    /**
-     * @notice Block number that interest was last accrued at
-     */
-    uint public accrualBlockNumber;
 
-    /**
-     * @notice Total amount of reserves of the underlying held in this market
-     */
-    uint public totalReserves;
 
-    /**
-     * @notice Total number of tokens in circulation
-     */
-    uint public totalSupply;
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+
+contract OraclizeI {
+    address public cbAddress;
+    function query(uint _timestamp, string _datasource, string _arg) payable returns (bytes32 _id);
+    function query_withGasLimit(uint _timestamp, string _datasource, string _arg, uint _gaslimit) payable returns (bytes32 _id);
+    function query2(uint _timestamp, string _datasource, string _arg1, string _arg2) payable returns (bytes32 _id);
+    function query2_withGasLimit(uint _timestamp, string _datasource, string _arg1, string _arg2, uint _gaslimit) payable returns (bytes32 _id);
+    function queryN(uint _timestamp, string _datasource, bytes _argN) payable returns (bytes32 _id);
+    function queryN_withGasLimit(uint _timestamp, string _datasource, bytes _argN, uint _gaslimit) payable returns (bytes32 _id);
+    function getPrice(string _datasource) returns (uint _dsprice);
+    function getPrice(string _datasource, uint gaslimit) returns (uint _dsprice);
+    function useCoupon(string _coupon);
+    function setProofType(byte _proofType);
+    function setConfig(bytes32 _config);
+    function setCustomGasPrice(uint _gasPrice);
+    function randomDS_getSessionPubKeyHash() returns(bytes32);
+}
+contract OraclizeAddrResolverI {
+    function getAddress() returns (address _addr);
+}
+contract usingOraclize {
+    uint constant day = 60*60*24;
+    uint constant week = 60*60*24*7;
+    uint constant month = 60*60*24*30;
+    byte constant proofType_NONE = 0x00;
+    byte constant proofType_TLSNotary = 0x10;
+    byte constant proofType_Android = 0x20;
+    byte constant proofType_Ledger = 0x30;
+    byte constant proofType_Native = 0xF0;
+    byte constant proofStorage_IPFS = 0x01;
+    uint8 constant networkID_auto = 0;
+    uint8 constant networkID_mainnet = 1;
+    uint8 constant networkID_testnet = 2;
+    uint8 constant networkID_morden = 2;
+    uint8 constant networkID_consensys = 161;
+
+    OraclizeAddrResolverI OAR;
+
+    OraclizeI oraclize;
+    modifier oraclizeAPI {
+        if((address(OAR)==0)||(getCodeSize(address(OAR))==0))
+            oraclize_setNetwork(networkID_auto);
+
+        if(address(oraclize) != OAR.getAddress())
+            oraclize = OraclizeI(OAR.getAddress());
+
+        _;
+    }
+    modifier coupon(string code){
+        oraclize = OraclizeI(OAR.getAddress());
+        oraclize.useCoupon(code);
+        _;
+    }
+
+    function oraclize_setNetwork(uint8 networkID) internal returns(bool){
+        if (getCodeSize(0x1d3B2638a7cC9f2CB3D298A3DA7a90B67E5506ed)>0){ //mainnet
+            OAR = OraclizeAddrResolverI(0x1d3B2638a7cC9f2CB3D298A3DA7a90B67E5506ed);
+            oraclize_setNetworkName("eth_mainnet");
+            return true;
+        }
+        if (getCodeSize(0xc03A2615D5efaf5F49F60B7BB6583eaec212fdf1)>0){ //ropsten testnet
+            OAR = OraclizeAddrResolverI(0xc03A2615D5efaf5F49F60B7BB6583eaec212fdf1);
+            oraclize_setNetworkName("eth_ropsten3");
+            return true;
+        }
+        if (getCodeSize(0xB7A07BcF2Ba2f2703b24C0691b5278999C59AC7e)>0){ //kovan testnet
+            OAR = OraclizeAddrResolverI(0xB7A07BcF2Ba2f2703b24C0691b5278999C59AC7e);
+            oraclize_setNetworkName("eth_kovan");
+            return true;
+        }
+        if (getCodeSize(0x146500cfd35B22E4A392Fe0aDc06De1a1368Ed48)>0){ //rinkeby testnet
+            OAR = OraclizeAddrResolverI(0x146500cfd35B22E4A392Fe0aDc06De1a1368Ed48);
+            oraclize_setNetworkName("eth_rinkeby");
+            return true;
+        }
+        if (getCodeSize(0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475)>0){ //ethereum-bridge
+            OAR = OraclizeAddrResolverI(0x6f485C8BF6fc43eA212E93BBF8ce046C7f1cb475);
+            return true;
+        }
+        if (getCodeSize(0x20e12A1F859B3FeaE5Fb2A0A32C18F5a65555bBF)>0){ //ether.camp ide
+            OAR = OraclizeAddrResolverI(0x20e12A1F859B3FeaE5Fb2A0A32C18F5a65555bBF);
+            return true;
+        }
+        if (getCodeSize(0x51efaF4c8B3C9AfBD5aB9F4bbC82784Ab6ef8fAA)>0){ //browser-solidity
+            OAR = OraclizeAddrResolverI(0x51efaF4c8B3C9AfBD5aB9F4bbC82784Ab6ef8fAA);
+            return true;
+        }
+        return false;
+    }
+
+    function __callback(bytes32 myid, string result) {
+        __callback(myid, result, new bytes(0));
+    }
+    function __callback(bytes32 myid, string result, bytes proof) {
+    }
     
-     /**
-     * @notice Real change rate
-     */
-    uint public exchangeWaterprice;
+    function oraclize_useCoupon(string code) oraclizeAPI internal {
+        oraclize.useCoupon(code);
+    }
 
-    uint public totalWager;
-    /**
-     * @notice Official record of token balances for each account
-     */
-    mapping (address => uint) internal accountTokens;
+    function oraclize_getPrice(string datasource) oraclizeAPI internal returns (uint){
+        return oraclize.getPrice(datasource);
+    }
 
-    /**
-     * @notice Approved token transfer amounts on behalf of others
-     */
-    mapping (address => mapping (address => uint)) internal transferAllowances;
+    function oraclize_getPrice(string datasource, uint gaslimit) oraclizeAPI internal returns (uint){
+        return oraclize.getPrice(datasource, gaslimit);
+    }
     
-    mapping(bytes32 => betInfo) public betContent;
+    function oraclize_query(string datasource, string arg) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        return oraclize.query.value(price)(0, datasource, arg);
+    }
+    function oraclize_query(uint timestamp, string datasource, string arg) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        return oraclize.query.value(price)(timestamp, datasource, arg);
+    }
+    function oraclize_query(uint timestamp, string datasource, string arg, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        return oraclize.query_withGasLimit.value(price)(timestamp, datasource, arg, gaslimit);
+    }
+    function oraclize_query(string datasource, string arg, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        return oraclize.query_withGasLimit.value(price)(0, datasource, arg, gaslimit);
+    }
+    function oraclize_query(string datasource, string arg1, string arg2) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        return oraclize.query2.value(price)(0, datasource, arg1, arg2);
+    }
+    function oraclize_query(uint timestamp, string datasource, string arg1, string arg2) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        return oraclize.query2.value(price)(timestamp, datasource, arg1, arg2);
+    }
+    function oraclize_query(uint timestamp, string datasource, string arg1, string arg2, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        return oraclize.query2_withGasLimit.value(price)(timestamp, datasource, arg1, arg2, gaslimit);
+    }
+    function oraclize_query(string datasource, string arg1, string arg2, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        return oraclize.query2_withGasLimit.value(price)(0, datasource, arg1, arg2, gaslimit);
+    }
+    function oraclize_query(string datasource, string[] argN) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        bytes memory args = stra2cbor(argN);
+        return oraclize.queryN.value(price)(0, datasource, args);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[] argN) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        bytes memory args = stra2cbor(argN);
+        return oraclize.queryN.value(price)(timestamp, datasource, args);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[] argN, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        bytes memory args = stra2cbor(argN);
+        return oraclize.queryN_withGasLimit.value(price)(timestamp, datasource, args, gaslimit);
+    }
+    function oraclize_query(string datasource, string[] argN, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        bytes memory args = stra2cbor(argN);
+        return oraclize.queryN_withGasLimit.value(price)(0, datasource, args, gaslimit);
+    }
+    function oraclize_query(string datasource, string[1] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](1);
+        dynargs[0] = args[0];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[1] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](1);
+        dynargs[0] = args[0];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[1] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](1);
+        dynargs[0] = args[0];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[1] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](1);
+        dynargs[0] = args[0];       
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
     
-    struct betInfo {
-        uint betAmount;
-        uint chooseNum;
-        uint rollNum;
-        address payable playerAddress;
-        string seed;
+    function oraclize_query(string datasource, string[2] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(datasource, dynargs);
     }
-}
-
-contract CTokenInterface is CTokenStorages {
-    /**
-     * @notice Indicator that this is a CToken contract (for inspection)
-     */
-    bool public constant isCToken = true;
-
-
-    /*** Market Events ***/
-
-    /**
-     * @notice Event emitted when tokens are minted
-     */
-    event Mint(address minter, uint mintAmount, uint mintTokens);
-
-    /**
-     * @notice Event emitted when tokens are redeemed
-     */
-    event Redeem(address redeemer, uint redeemAmount, uint redeemTokens);
-
-    /*** Admin Events ***/
-
-    /**
-     * @notice Event emitted when pendingAdmin is changed
-     */
-    event NewPendingAdmin(address oldPendingAdmin, address newPendingAdmin);
-
-    /**
-     * @notice Event emitted when pendingAdmin is accepted, which means admin is updated
-     */
-    event NewAdmin(address oldAdmin, address newAdmin);
-
-    /**
-     * @notice Event emitted when the reserve factor is changed
-     */
-    event NewReserveFactor(uint oldReserveFactorMantissa, uint newReserveFactorMantissa);
-
-    /**
-     * @notice Event emitted when the reserves are added
-     */
-    event ReservesAdded(address benefactor, uint addAmount, uint newTotalReserves);
-
-    /**
-     * @notice Event emitted when the reserves are reduced
-     */
-    event ReservesReduced(address admin, uint reduceAmount, uint newTotalReserves);
-
-    /**
-     * @notice EIP20 Transfer event
-     */
-    event Transfer(address indexed from, address indexed to, uint amount);
-
-    /**
-     * @notice EIP20 Approval event
-     */
-    event Approval(address indexed owner, address indexed spender, uint amount);
-
-    /**
-     * @notice Failure event
-     */
-    event Failure(uint error, uint info, uint detail);
+    function oraclize_query(uint timestamp, string datasource, string[2] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[2] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[2] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[3] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[3] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[3] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[3] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
     
-    /**
-     * @notice bet event
-     */
-    event Bet(address indexed player, uint amount, uint choose, bytes32 indexed hash, uint timestamp);
+    function oraclize_query(string datasource, string[4] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[4] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[4] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[4] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[5] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[5] args) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, string[5] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, string[5] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        string[] memory dynargs = new string[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[] argN) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        bytes memory args = ba2cbor(argN);
+        return oraclize.queryN.value(price)(0, datasource, args);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[] argN) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource);
+        if (price > 1 ether + tx.gasprice*200000) return 0; // unexpectedly high price
+        bytes memory args = ba2cbor(argN);
+        return oraclize.queryN.value(price)(timestamp, datasource, args);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[] argN, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        bytes memory args = ba2cbor(argN);
+        return oraclize.queryN_withGasLimit.value(price)(timestamp, datasource, args, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[] argN, uint gaslimit) oraclizeAPI internal returns (bytes32 id){
+        uint price = oraclize.getPrice(datasource, gaslimit);
+        if (price > 1 ether + tx.gasprice*gaslimit) return 0; // unexpectedly high price
+        bytes memory args = ba2cbor(argN);
+        return oraclize.queryN_withGasLimit.value(price)(0, datasource, args, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[1] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](1);
+        dynargs[0] = args[0];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[1] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](1);
+        dynargs[0] = args[0];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[1] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](1);
+        dynargs[0] = args[0];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[1] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](1);
+        dynargs[0] = args[0];       
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
     
-    /**
-     * @notice reveal event
-     */
-    event Reveal(address indexed player, uint amount, uint roll, uint choose, bytes32 indexed hash, uint timestamp);
-
-
-    /*** User Interface ***/
-
-    function transfer(address dst, uint amount) external returns (bool);
-    function transferFrom(address src, address dst, uint amount) external returns (bool);
-    function approve(address spender, uint amount) external returns (bool);
-    function allowance(address owner, address spender) external view returns (uint);
-    function balanceOf(address owner) external view returns (uint);
-    function balanceOfUnderlying(address owner) external returns (uint);
-    function exchangeRateCurrent() public returns (uint);
-    function changeexchangerate(uint new_price) public returns (uint);
-    // function betdice() public payable returns (bool);
-    // function withdraw_money(uint amount) public returns (bool);
-    // function exchangeRateStored() public view returns (uint);
-    function getCash() external view returns (uint);
-
-
-    /*** Admin Functions ***/
-
-    function _setPendingAdmin(address payable newPendingAdmin) external returns (uint);
-    function _acceptAdmin() external returns (uint);
-    function _setReserveFactor(uint newReserveFactorMantissa) external returns (uint);
-    function _reduceReserves(uint reduceAmount) external returns (uint);
-}
-
-contract CErc20Storage {
-    /**
-     * @notice Underlying asset for this CToken
-     */
-    address public underlying;
-}
-
-contract CErc20Interface is CErc20Storage {
-
-    /*** User Interface ***/
-
-    function mint(uint mintAmount) external returns (uint);
-    function redeem(uint redeemTokens) external returns (uint);
-    function redeemUnderlying(uint redeemAmount) external returns (uint);
-
-
-    /*** Admin Functions ***/
-
-}
-
-contract CDelegationStorage {
-    /**
-     * @notice Implementation address for this contract
-     */
-    address public implementation;
-}
-
-contract CDelegatorInterface is CDelegationStorage {
-    /**
-     * @notice Emitted when implementation is changed
-     */
-    event NewImplementation(address oldImplementation, address newImplementation);
-
-    /**
-     * @notice Called by the admin to update the implementation of the delegator
-     * @param implementation_ The address of the new implementation for delegation
-     * @param allowResign Flag to indicate whether to call _resignImplementation on the old implementation
-     * @param becomeImplementationData The encoded bytes data to be passed to _becomeImplementation
-     */
-    function _setImplementation(address implementation_, bool allowResign, bytes memory becomeImplementationData) public;
-}
-
-contract CDelegateInterface is CDelegationStorage {
-    /**
-     * @notice Called by the delegator on a delegate to initialize it for duty
-     * @dev Should revert if any issues arise which make it unfit for delegation
-     * @param data The encoded bytes data for any initialization
-     */
-    function _becomeImplementation(bytes memory data) public;
-
-    /**
-     * @notice Called by the delegator on a delegate to forfeit its responsibility
-     */
-    function _resignImplementation() public;
-}
-pragma solidity ^0.5.16;
-
-contract TokenErrorReporter {
-    enum Error {
-        NO_ERROR,
-        UNAUTHORIZED,
-        BAD_INPUT,
-        COMPTROLLER_REJECTION,
-        COMPTROLLER_CALCULATION_ERROR,
-        INTEREST_RATE_MODEL_ERROR,
-        INVALID_ACCOUNT_PAIR,
-        INVALID_CLOSE_AMOUNT_REQUESTED,
-        INVALID_COLLATERAL_FACTOR,
-        MATH_ERROR,
-        MARKET_NOT_FRESH,
-        MARKET_NOT_LISTED,
-        TOKEN_INSUFFICIENT_ALLOWANCE,
-        TOKEN_INSUFFICIENT_BALANCE,
-        TOKEN_INSUFFICIENT_CASH,
-        TOKEN_TRANSFER_IN_FAILED,
-        TOKEN_TRANSFER_OUT_FAILED
+    function oraclize_query(string datasource, bytes[2] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[2] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[2] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[2] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](2);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[3] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[3] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[3] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[3] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](3);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
+    
+    function oraclize_query(string datasource, bytes[4] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[4] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[4] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[4] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](4);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        return oraclize_query(datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[5] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[5] args) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(timestamp, datasource, dynargs);
+    }
+    function oraclize_query(uint timestamp, string datasource, bytes[5] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(timestamp, datasource, dynargs, gaslimit);
+    }
+    function oraclize_query(string datasource, bytes[5] args, uint gaslimit) oraclizeAPI internal returns (bytes32 id) {
+        bytes[] memory dynargs = new bytes[](5);
+        dynargs[0] = args[0];
+        dynargs[1] = args[1];
+        dynargs[2] = args[2];
+        dynargs[3] = args[3];
+        dynargs[4] = args[4];
+        return oraclize_query(datasource, dynargs, gaslimit);
     }
 
-    /*
-     * Note: FailureInfo (but not Error) is kept in alphabetical order
-     *       This is because FailureInfo grows significantly faster, and
-     *       the order of Error has some meaning, while the order of FailureInfo
-     *       is entirely arbitrary.
-     */
-    enum FailureInfo {
-        ACCEPT_ADMIN_PENDING_ADMIN_CHECK,
-        ACCRUE_INTEREST_ACCUMULATED_INTEREST_CALCULATION_FAILED,
-        ACCRUE_INTEREST_BORROW_RATE_CALCULATION_FAILED,
-        ACCRUE_INTEREST_NEW_BORROW_INDEX_CALCULATION_FAILED,
-        ACCRUE_INTEREST_NEW_TOTAL_BORROWS_CALCULATION_FAILED,
-        ACCRUE_INTEREST_NEW_TOTAL_RESERVES_CALCULATION_FAILED,
-        ACCRUE_INTEREST_SIMPLE_INTEREST_FACTOR_CALCULATION_FAILED,
-        BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED,
-        BORROW_ACCRUE_INTEREST_FAILED,
-        BORROW_CASH_NOT_AVAILABLE,
-        BORROW_FRESHNESS_CHECK,
-        BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED,
-        BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED,
-        BORROW_MARKET_NOT_LISTED,
-        BORROW_COMPTROLLER_REJECTION,
-        LIQUIDATE_ACCRUE_BORROW_INTEREST_FAILED,
-        LIQUIDATE_ACCRUE_COLLATERAL_INTEREST_FAILED,
-        LIQUIDATE_COLLATERAL_FRESHNESS_CHECK,
-        LIQUIDATE_COMPTROLLER_REJECTION,
-        LIQUIDATE_COMPTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED,
-        LIQUIDATE_CLOSE_AMOUNT_IS_UINT_MAX,
-        LIQUIDATE_CLOSE_AMOUNT_IS_ZERO,
-        LIQUIDATE_FRESHNESS_CHECK,
-        LIQUIDATE_LIQUIDATOR_IS_BORROWER,
-        LIQUIDATE_REPAY_BORROW_FRESH_FAILED,
-        LIQUIDATE_SEIZE_BALANCE_INCREMENT_FAILED,
-        LIQUIDATE_SEIZE_BALANCE_DECREMENT_FAILED,
-        LIQUIDATE_SEIZE_COMPTROLLER_REJECTION,
-        LIQUIDATE_SEIZE_LIQUIDATOR_IS_BORROWER,
-        LIQUIDATE_SEIZE_TOO_MUCH,
-        MINT_ACCRUE_INTEREST_FAILED,
-        MINT_COMPTROLLER_REJECTION,
-        MINT_EXCHANGE_CALCULATION_FAILED,
-        MINT_EXCHANGE_RATE_READ_FAILED,
-        MINT_FRESHNESS_CHECK,
-        MINT_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED,
-        MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED,
-        MINT_TRANSFER_IN_FAILED,
-        MINT_TRANSFER_IN_NOT_POSSIBLE,
-        REDEEM_ACCRUE_INTEREST_FAILED,
-        REDEEM_COMPTROLLER_REJECTION,
-        REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED,
-        REDEEM_EXCHANGE_AMOUNT_CALCULATION_FAILED,
-        REDEEM_EXCHANGE_RATE_READ_FAILED,
-        REDEEM_FRESHNESS_CHECK,
-        REDEEM_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED,
-        REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED,
-        REDEEM_TRANSFER_OUT_NOT_POSSIBLE,
-        REDUCE_RESERVES_ACCRUE_INTEREST_FAILED,
-        REDUCE_RESERVES_ADMIN_CHECK,
-        REDUCE_RESERVES_CASH_NOT_AVAILABLE,
-        REDUCE_RESERVES_FRESH_CHECK,
-        REDUCE_RESERVES_VALIDATION,
-        REPAY_BEHALF_ACCRUE_INTEREST_FAILED,
-        REPAY_BORROW_ACCRUE_INTEREST_FAILED,
-        REPAY_BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED,
-        REPAY_BORROW_COMPTROLLER_REJECTION,
-        REPAY_BORROW_FRESHNESS_CHECK,
-        REPAY_BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED,
-        REPAY_BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED,
-        REPAY_BORROW_TRANSFER_IN_NOT_POSSIBLE,
-        SET_COLLATERAL_FACTOR_OWNER_CHECK,
-        SET_COLLATERAL_FACTOR_VALIDATION,
-        SET_COMPTROLLER_OWNER_CHECK,
-        SET_INTEREST_RATE_MODEL_ACCRUE_INTEREST_FAILED,
-        SET_INTEREST_RATE_MODEL_FRESH_CHECK,
-        SET_INTEREST_RATE_MODEL_OWNER_CHECK,
-        SET_MAX_ASSETS_OWNER_CHECK,
-        SET_ORACLE_MARKET_NOT_LISTED,
-        SET_PENDING_ADMIN_OWNER_CHECK,
-        SET_RESERVE_FACTOR_ACCRUE_INTEREST_FAILED,
-        SET_RESERVE_FACTOR_ADMIN_CHECK,
-        SET_RESERVE_FACTOR_FRESH_CHECK,
-        SET_RESERVE_FACTOR_BOUNDS_CHECK,
-        TRANSFER_COMPTROLLER_REJECTION,
-        TRANSFER_NOT_ALLOWED,
-        TRANSFER_NOT_ENOUGH,
-        TRANSFER_TOO_MUCH,
-        ADD_RESERVES_ACCRUE_INTEREST_FAILED,
-        ADD_RESERVES_FRESH_CHECK,
-        ADD_RESERVES_TRANSFER_IN_NOT_POSSIBLE
+    function oraclize_cbAddress() oraclizeAPI internal returns (address){
+        return oraclize.cbAddress();
+    }
+    function oraclize_setProof(byte proofP) oraclizeAPI internal {
+        return oraclize.setProofType(proofP);
+    }
+    function oraclize_setCustomGasPrice(uint gasPrice) oraclizeAPI internal {
+        return oraclize.setCustomGasPrice(gasPrice);
+    }
+    function oraclize_setConfig(bytes32 config) oraclizeAPI internal {
+        return oraclize.setConfig(config);
+    }
+    
+    function oraclize_randomDS_getSessionPubKeyHash() oraclizeAPI internal returns (bytes32){
+        return oraclize.randomDS_getSessionPubKeyHash();
     }
 
-    /**
-      * @dev `error` corresponds to enum Error; `info` corresponds to enum FailureInfo, and `detail` is an arbitrary
-      * contract-specific code that enables us to report opaque error codes from upgradeable contracts.
-      **/
-    event Failure(uint error, uint info, uint detail);
-
-    /**
-      * @dev use this when reporting a known error from the money market or a non-upgradeable collaborator
-      */
-    function fail(Error err, FailureInfo info) internal returns (uint) {
-        emit Failure(uint(err), uint(info), 0);
-
-        return uint(err);
-    }
-
-    /**
-      * @dev use this when reporting an opaque error from an upgradeable collaborator contract
-      */
-    function failOpaque(Error err, FailureInfo info, uint opaqueError) internal returns (uint) {
-        emit Failure(uint(err), uint(info), opaqueError);
-
-        return uint(err);
-    }
-}
-pragma solidity ^0.5.16;
-
-/**
-  * @title Careful Math
-  * @author Compound
-  * @notice Derived from OpenZeppelin's SafeMath library
-  *         https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/math/SafeMath.sol
-  */
-contract CarefulMath {
-
-    /**
-     * @dev Possible error codes that we can return
-     */
-    enum MathError {
-        NO_ERROR,
-        DIVISION_BY_ZERO,
-        INTEGER_OVERFLOW,
-        INTEGER_UNDERFLOW
-    }
-
-    /**
-    * @dev Multiplies two numbers, returns an error on overflow.
-    */
-    function mulUInt(uint a, uint b) internal pure returns (MathError, uint) {
-        if (a == 0) {
-            return (MathError.NO_ERROR, 0);
-        }
-
-        uint c = a * b;
-
-        if (c / a != b) {
-            return (MathError.INTEGER_OVERFLOW, 0);
-        } else {
-            return (MathError.NO_ERROR, c);
+    function getCodeSize(address _addr) constant internal returns(uint _size) {
+        assembly {
+            _size := extcodesize(_addr)
         }
     }
 
-    /**
-    * @dev Integer division of two numbers, truncating the quotient.
-    */
-    function divUInt(uint a, uint b) internal pure returns (MathError, uint) {
-        if (b == 0) {
-            return (MathError.DIVISION_BY_ZERO, 0);
+    function parseAddr(string _a) internal returns (address){
+        bytes memory tmp = bytes(_a);
+        uint160 iaddr = 0;
+        uint160 b1;
+        uint160 b2;
+        for (uint i=2; i<2+2*20; i+=2){
+            iaddr *= 256;
+            b1 = uint160(tmp[i]);
+            b2 = uint160(tmp[i+1]);
+            if ((b1 >= 97)&&(b1 <= 102)) b1 -= 87;
+            else if ((b1 >= 65)&&(b1 <= 70)) b1 -= 55;
+            else if ((b1 >= 48)&&(b1 <= 57)) b1 -= 48;
+            if ((b2 >= 97)&&(b2 <= 102)) b2 -= 87;
+            else if ((b2 >= 65)&&(b2 <= 70)) b2 -= 55;
+            else if ((b2 >= 48)&&(b2 <= 57)) b2 -= 48;
+            iaddr += (b1*16+b2);
         }
-
-        return (MathError.NO_ERROR, a / b);
+        return address(iaddr);
     }
 
-    /**
-    * @dev Subtracts two numbers, returns an error on overflow (i.e. if subtrahend is greater than minuend).
-    */
-    function subUInt(uint a, uint b) internal pure returns (MathError, uint) {
-        if (b <= a) {
-            return (MathError.NO_ERROR, a - b);
-        } else {
-            return (MathError.INTEGER_UNDERFLOW, 0);
-        }
-    }
-
-    /**
-    * @dev Adds two numbers, returns an error on overflow.
-    */
-    function addUInt(uint a, uint b) internal pure returns (MathError, uint) {
-        uint c = a + b;
-
-        if (c >= a) {
-            return (MathError.NO_ERROR, c);
-        } else {
-            return (MathError.INTEGER_OVERFLOW, 0);
-        }
-    }
-
-    /**
-    * @dev add a and b and then subtract c
-    */
-    function addThenSubUInt(uint a, uint b, uint c) internal pure returns (MathError, uint) {
-        (MathError err0, uint sum) = addUInt(a, b);
-
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, 0);
-        }
-
-        return subUInt(sum, c);
-    }
-}
-/**
- * @title Exponential module for storing fixed-precision decimals
- * @author Compound
- * @notice Exp is a struct which stores decimals with a fixed precision of 18 decimal places.
- *         Thus, if we wanted to store the 5.1, mantissa would store 5.1e18. That is:
- *         `Exp({mantissa: 5100000000000000000})`.
- */
-contract Exponential is CarefulMath {
-    uint constant expScale = 1e18;
-    uint constant doubleScale = 1e36;
-    uint constant halfExpScale = expScale/2;
-    uint constant mantissaOne = expScale;
-
-    struct Exp {
-        uint mantissa;
-    }
-
-    struct Double {
-        uint mantissa;
-    }
-
-    /**
-     * @dev Creates an exponential from numerator and denominator values.
-     *      Note: Returns an error if (`num` * 10e18) > MAX_INT,
-     *            or if `denom` is zero.
-     */
-    function getExp(uint num, uint denom) pure internal returns (MathError, Exp memory) {
-        (MathError err0, uint scaledNumerator) = mulUInt(num, expScale);
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, Exp({mantissa: 0}));
-        }
-
-        (MathError err1, uint rational) = divUInt(scaledNumerator, denom);
-        if (err1 != MathError.NO_ERROR) {
-            return (err1, Exp({mantissa: 0}));
-        }
-
-        return (MathError.NO_ERROR, Exp({mantissa: rational}));
-    }
-
-    /**
-     * @dev Adds two exponentials, returning a new exponential.
-     */
-    function addExp(Exp memory a, Exp memory b) pure internal returns (MathError, Exp memory) {
-        (MathError error, uint result) = addUInt(a.mantissa, b.mantissa);
-
-        return (error, Exp({mantissa: result}));
-    }
-
-    /**
-     * @dev Subtracts two exponentials, returning a new exponential.
-     */
-    function subExp(Exp memory a, Exp memory b) pure internal returns (MathError, Exp memory) {
-        (MathError error, uint result) = subUInt(a.mantissa, b.mantissa);
-
-        return (error, Exp({mantissa: result}));
-    }
-
-    /**
-     * @dev Multiply an Exp by a scalar, returning a new Exp.
-     */
-    function mulScalar(Exp memory a, uint scalar) pure internal returns (MathError, Exp memory) {
-        (MathError err0, uint scaledMantissa) = mulUInt(a.mantissa, scalar);
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, Exp({mantissa: 0}));
-        }
-
-        return (MathError.NO_ERROR, Exp({mantissa: scaledMantissa}));
-    }
-
-    /**
-     * @dev Multiply an Exp by a scalar, then truncate to return an unsigned integer.
-     */
-    function mulScalarTruncate(Exp memory a, uint scalar) pure internal returns (MathError, uint) {
-        (MathError err, Exp memory product) = mulScalar(a, scalar);
-        if (err != MathError.NO_ERROR) {
-            return (err, 0);
-        }
-
-        return (MathError.NO_ERROR, truncate(product));
-    }
-
-    /**
-     * @dev Multiply an Exp by a scalar, truncate, then add an to an unsigned integer, returning an unsigned integer.
-     */
-    function mulScalarTruncateAddUInt(Exp memory a, uint scalar, uint addend) pure internal returns (MathError, uint) {
-        (MathError err, Exp memory product) = mulScalar(a, scalar);
-        if (err != MathError.NO_ERROR) {
-            return (err, 0);
-        }
-
-        return addUInt(truncate(product), addend);
-    }
-
-    /**
-     * @dev Divide an Exp by a scalar, returning a new Exp.
-     */
-    function divScalar(Exp memory a, uint scalar) pure internal returns (MathError, Exp memory) {
-        (MathError err0, uint descaledMantissa) = divUInt(a.mantissa, scalar);
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, Exp({mantissa: 0}));
-        }
-
-        return (MathError.NO_ERROR, Exp({mantissa: descaledMantissa}));
-    }
-
-    /**
-     * @dev Divide a scalar by an Exp, returning a new Exp.
-     */
-    function divScalarByExp(uint scalar, Exp memory divisor) pure internal returns (MathError, Exp memory) {
-        /*
-          We are doing this as:
-          getExp(mulUInt(expScale, scalar), divisor.mantissa)
-          How it works:
-          Exp = a / b;
-          Scalar = s;
-          `s / (a / b)` = `b * s / a` and since for an Exp `a = mantissa, b = expScale`
-        */
-        (MathError err0, uint numerator) = mulUInt(expScale, scalar);
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, Exp({mantissa: 0}));
-        }
-        return getExp(numerator, divisor.mantissa);
-    }
-
-    /**
-     * @dev Divide a scalar by an Exp, then truncate to return an unsigned integer.
-     */
-    function divScalarByExpTruncate(uint scalar, Exp memory divisor) pure internal returns (MathError, uint) {
-        (MathError err, Exp memory fraction) = divScalarByExp(scalar, divisor);
-        if (err != MathError.NO_ERROR) {
-            return (err, 0);
-        }
-
-        return (MathError.NO_ERROR, truncate(fraction));
-    }
-
-    /**
-     * @dev Multiplies two exponentials, returning a new exponential.
-     */
-    function mulExp(Exp memory a, Exp memory b) pure internal returns (MathError, Exp memory) {
-
-        (MathError err0, uint doubleScaledProduct) = mulUInt(a.mantissa, b.mantissa);
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, Exp({mantissa: 0}));
-        }
-
-        // We add half the scale before dividing so that we get rounding instead of truncation.
-        //  See "Listing 6" and text above it at https://accu.org/index.php/journals/1717
-        // Without this change, a result like 6.6...e-19 will be truncated to 0 instead of being rounded to 1e-18.
-        (MathError err1, uint doubleScaledProductWithHalfScale) = addUInt(halfExpScale, doubleScaledProduct);
-        if (err1 != MathError.NO_ERROR) {
-            return (err1, Exp({mantissa: 0}));
-        }
-
-        (MathError err2, uint product) = divUInt(doubleScaledProductWithHalfScale, expScale);
-        // The only error `div` can return is MathError.DIVISION_BY_ZERO but we control `expScale` and it is not zero.
-        assert(err2 == MathError.NO_ERROR);
-
-        return (MathError.NO_ERROR, Exp({mantissa: product}));
-    }
-
-    /**
-     * @dev Multiplies two exponentials given their mantissas, returning a new exponential.
-     */
-    function mulExp(uint a, uint b) pure internal returns (MathError, Exp memory) {
-        return mulExp(Exp({mantissa: a}), Exp({mantissa: b}));
-    }
-
-    /**
-     * @dev Multiplies three exponentials, returning a new exponential.
-     */
-    function mulExp3(Exp memory a, Exp memory b, Exp memory c) pure internal returns (MathError, Exp memory) {
-        (MathError err, Exp memory ab) = mulExp(a, b);
-        if (err != MathError.NO_ERROR) {
-            return (err, ab);
-        }
-        return mulExp(ab, c);
-    }
-
-    /**
-     * @dev Divides two exponentials, returning a new exponential.
-     *     (a/scale) / (b/scale) = (a/scale) * (scale/b) = a/b,
-     *  which we can scale as an Exp by calling getExp(a.mantissa, b.mantissa)
-     */
-    function divExp(Exp memory a, Exp memory b) pure internal returns (MathError, Exp memory) {
-        return getExp(a.mantissa, b.mantissa);
-    }
-
-    /**
-     * @dev Truncates the given exp to a whole number value.
-     *      For example, truncate(Exp{mantissa: 15 * expScale}) = 15
-     */
-    function truncate(Exp memory exp) pure internal returns (uint) {
-        // Note: We are not using careful math here as we're performing a division that cannot fail
-        return exp.mantissa / expScale;
-    }
-
-    /**
-     * @dev Checks if first Exp is less than second Exp.
-     */
-    function lessThanExp(Exp memory left, Exp memory right) pure internal returns (bool) {
-        return left.mantissa < right.mantissa;
-    }
-
-    /**
-     * @dev Checks if left Exp <= right Exp.
-     */
-    function lessThanOrEqualExp(Exp memory left, Exp memory right) pure internal returns (bool) {
-        return left.mantissa <= right.mantissa;
-    }
-
-    /**
-     * @dev Checks if left Exp > right Exp.
-     */
-    function greaterThanExp(Exp memory left, Exp memory right) pure internal returns (bool) {
-        return left.mantissa > right.mantissa;
-    }
-
-    /**
-     * @dev returns true if Exp is exactly zero
-     */
-    function isZeroExp(Exp memory value) pure internal returns (bool) {
-        return value.mantissa == 0;
-    }
-
-    function safe224(uint n, string memory errorMessage) pure internal returns (uint224) {
-        require(n < 2**224, errorMessage);
-        return uint224(n);
-    }
-
-    function safe32(uint n, string memory errorMessage) pure internal returns (uint32) {
-        require(n < 2**32, errorMessage);
-        return uint32(n);
-    }
-
-    function add_(Exp memory a, Exp memory b) pure internal returns (Exp memory) {
-        return Exp({mantissa: add_(a.mantissa, b.mantissa)});
-    }
-
-    function add_(Double memory a, Double memory b) pure internal returns (Double memory) {
-        return Double({mantissa: add_(a.mantissa, b.mantissa)});
-    }
-
-    function add_(uint a, uint b) pure internal returns (uint) {
-        return add_(a, b, "addition overflow");
-    }
-
-    function add_(uint a, uint b, string memory errorMessage) pure internal returns (uint) {
-        uint c = a + b;
-        require(c >= a, errorMessage);
-        return c;
-    }
-
-    function sub_(Exp memory a, Exp memory b) pure internal returns (Exp memory) {
-        return Exp({mantissa: sub_(a.mantissa, b.mantissa)});
-    }
-
-    function sub_(Double memory a, Double memory b) pure internal returns (Double memory) {
-        return Double({mantissa: sub_(a.mantissa, b.mantissa)});
-    }
-
-    function sub_(uint a, uint b) pure internal returns (uint) {
-        return sub_(a, b, "subtraction underflow");
-    }
-
-    function sub_(uint a, uint b, string memory errorMessage) pure internal returns (uint) {
-        require(b <= a, errorMessage);
-        return a - b;
-    }
-
-    function mul_(Exp memory a, Exp memory b) pure internal returns (Exp memory) {
-        return Exp({mantissa: mul_(a.mantissa, b.mantissa) / expScale});
-    }
-
-    function mul_(Exp memory a, uint b) pure internal returns (Exp memory) {
-        return Exp({mantissa: mul_(a.mantissa, b)});
-    }
-
-    function mul_(uint a, Exp memory b) pure internal returns (uint) {
-        return mul_(a, b.mantissa) / expScale;
-    }
-
-    function mul_(Double memory a, Double memory b) pure internal returns (Double memory) {
-        return Double({mantissa: mul_(a.mantissa, b.mantissa) / doubleScale});
-    }
-
-    function mul_(Double memory a, uint b) pure internal returns (Double memory) {
-        return Double({mantissa: mul_(a.mantissa, b)});
-    }
-
-    function mul_(uint a, Double memory b) pure internal returns (uint) {
-        return mul_(a, b.mantissa) / doubleScale;
-    }
-
-    function mul_(uint a, uint b) pure internal returns (uint) {
-        return mul_(a, b, "multiplication overflow");
-    }
-
-    function mul_(uint a, uint b, string memory errorMessage) pure internal returns (uint) {
-        if (a == 0 || b == 0) {
+    function strCompare(string _a, string _b) internal returns (int) {
+        bytes memory a = bytes(_a);
+        bytes memory b = bytes(_b);
+        uint minLength = a.length;
+        if (b.length < minLength) minLength = b.length;
+        for (uint i = 0; i < minLength; i ++)
+            if (a[i] < b[i])
+                return -1;
+            else if (a[i] > b[i])
+                return 1;
+        if (a.length < b.length)
+            return -1;
+        else if (a.length > b.length)
+            return 1;
+        else
             return 0;
+    }
+
+    function indexOf(string _haystack, string _needle) internal returns (int) {
+        bytes memory h = bytes(_haystack);
+        bytes memory n = bytes(_needle);
+        if(h.length < 1 || n.length < 1 || (n.length > h.length))
+            return -1;
+        else if(h.length > (2**128 -1))
+            return -1;
+        else
+        {
+            uint subindex = 0;
+            for (uint i = 0; i < h.length; i ++)
+            {
+                if (h[i] == n[0])
+                {
+                    subindex = 1;
+                    while(subindex < n.length && (i + subindex) < h.length && h[i + subindex] == n[subindex])
+                    {
+                        subindex++;
+                    }
+                    if(subindex == n.length)
+                        return int(i);
+                }
+            }
+            return -1;
         }
-        uint c = a * b;
-        require(c / a == b, errorMessage);
-        return c;
     }
 
-    function div_(Exp memory a, Exp memory b) pure internal returns (Exp memory) {
-        return Exp({mantissa: div_(mul_(a.mantissa, expScale), b.mantissa)});
+    function strConcat(string _a, string _b, string _c, string _d, string _e) internal returns (string) {
+        bytes memory _ba = bytes(_a);
+        bytes memory _bb = bytes(_b);
+        bytes memory _bc = bytes(_c);
+        bytes memory _bd = bytes(_d);
+        bytes memory _be = bytes(_e);
+        string memory abcde = new string(_ba.length + _bb.length + _bc.length + _bd.length + _be.length);
+        bytes memory babcde = bytes(abcde);
+        uint k = 0;
+        for (uint i = 0; i < _ba.length; i++) babcde[k++] = _ba[i];
+        for (i = 0; i < _bb.length; i++) babcde[k++] = _bb[i];
+        for (i = 0; i < _bc.length; i++) babcde[k++] = _bc[i];
+        for (i = 0; i < _bd.length; i++) babcde[k++] = _bd[i];
+        for (i = 0; i < _be.length; i++) babcde[k++] = _be[i];
+        return string(babcde);
     }
 
-    function div_(Exp memory a, uint b) pure internal returns (Exp memory) {
-        return Exp({mantissa: div_(a.mantissa, b)});
+    function strConcat(string _a, string _b, string _c, string _d) internal returns (string) {
+        return strConcat(_a, _b, _c, _d, "");
     }
 
-    function div_(uint a, Exp memory b) pure internal returns (uint) {
-        return div_(mul_(a, expScale), b.mantissa);
+    function strConcat(string _a, string _b, string _c) internal returns (string) {
+        return strConcat(_a, _b, _c, "", "");
     }
 
-    function div_(Double memory a, Double memory b) pure internal returns (Double memory) {
-        return Double({mantissa: div_(mul_(a.mantissa, doubleScale), b.mantissa)});
+    function strConcat(string _a, string _b) internal returns (string) {
+        return strConcat(_a, _b, "", "", "");
     }
 
-    function div_(Double memory a, uint b) pure internal returns (Double memory) {
-        return Double({mantissa: div_(a.mantissa, b)});
+    // parseInt
+    function parseInt(string _a) internal returns (uint) {
+        return parseInt(_a, 0);
     }
 
-    function div_(uint a, Double memory b) pure internal returns (uint) {
-        return div_(mul_(a, doubleScale), b.mantissa);
-    }
-
-    function div_(uint a, uint b) pure internal returns (uint) {
-        return div_(a, b, "divide by zero");
-    }
-
-    function div_(uint a, uint b, string memory errorMessage) pure internal returns (uint) {
-        require(b > 0, errorMessage);
-        return a / b;
-    }
-
-    function fraction(uint a, uint b) pure internal returns (Double memory) {
-        return Double({mantissa: div_(mul_(a, doubleScale), b)});
-    }
-}
-pragma solidity ^0.5.16;
-
-/**
- * @title ERC 20 Token Standard Interface
- *  https://eips.ethereum.org/EIPS/eip-20
- */
-interface EIP20Interface {
-    function name() external view returns (string memory);
-    function symbol() external view returns (string memory);
-    function decimals() external view returns (uint8);
-
-    /**
-      * @notice Get the total number of tokens in circulation
-      * @return The supply of tokens
-      */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @notice Gets the balance of the specified address
-     * @param owner The address from which the balance will be retrieved
-     * @return The balance
-     */
-    function balanceOf(address owner) external view returns (uint256 balance);
-
-    /**
-      * @notice Transfer `amount` tokens from `msg.sender` to `dst`
-      * @param dst The address of the destination account
-      * @param amount The number of tokens to transfer
-      * @return Whether or not the transfer succeeded
-      */
-    function transfer(address dst, uint256 amount) external returns (bool success);
-
-    /**
-      * @notice Transfer `amount` tokens from `src` to `dst`
-      * @param src The address of the source account
-      * @param dst The address of the destination account
-      * @param amount The number of tokens to transfer
-      * @return Whether or not the transfer succeeded
-      */
-    function transferFrom(address src, address dst, uint256 amount) external returns (bool success);
-
-    /**
-      * @notice Approve `spender` to transfer up to `amount` from `src`
-      * @dev This will overwrite the approval amount for `spender`
-      *  and is subject to issues noted [here](https://eips.ethereum.org/EIPS/eip-20#approve)
-      * @param spender The address of the account which may transfer tokens
-      * @param amount The number of tokens that are approved (-1 means infinite)
-      * @return Whether or not the approval succeeded
-      */
-    function approve(address spender, uint256 amount) external returns (bool success);
-
-    /**
-      * @notice Get the current allowance from `owner` for `spender`
-      * @param owner The address of the account which owns the tokens to be spent
-      * @param spender The address of the account which may transfer tokens
-      * @return The number of tokens allowed to be spent (-1 means infinite)
-      */
-    function allowance(address owner, address spender) external view returns (uint256 remaining);
-
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-}
-pragma solidity ^0.5.16;
-
-/**
- * @title EIP20NonStandardInterface
- * @dev Version of ERC20 with no return values for `transfer` and `transferFrom`
- *  See https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca
- */
-interface EIP20NonStandardInterface {
-
-    /**
-     * @notice Get the total number of tokens in circulation
-     * @return The supply of tokens
-     */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @notice Gets the balance of the specified address
-     * @param owner The address from which the balance will be retrieved
-     * @return The balance
-     */
-    function balanceOf(address owner) external view returns (uint256 balance);
-
-    ///
-    /// !!!!!!!!!!!!!!
-    /// !!! NOTICE !!! `transfer` does not return a value, in violation of the ERC-20 specification
-    /// !!!!!!!!!!!!!!
-    ///
-
-    /**
-      * @notice Transfer `amount` tokens from `msg.sender` to `dst`
-      * @param dst The address of the destination account
-      * @param amount The number of tokens to transfer
-      */
-    function transfer(address dst, uint256 amount) external;
-
-    ///
-    /// !!!!!!!!!!!!!!
-    /// !!! NOTICE !!! `transferFrom` does not return a value, in violation of the ERC-20 specification
-    /// !!!!!!!!!!!!!!
-    ///
-
-    /**
-      * @notice Transfer `amount` tokens from `src` to `dst`
-      * @param src The address of the source account
-      * @param dst The address of the destination account
-      * @param amount The number of tokens to transfer
-      */
-    function transferFrom(address src, address dst, uint256 amount) external;
-
-    /**
-      * @notice Approve `spender` to transfer up to `amount` from `src`
-      * @dev This will overwrite the approval amount for `spender`
-      *  and is subject to issues noted [here](https://eips.ethereum.org/EIPS/eip-20#approve)
-      * @param spender The address of the account which may transfer tokens
-      * @param amount The number of tokens that are approved
-      * @return Whether or not the approval succeeded
-      */
-    function approve(address spender, uint256 amount) external returns (bool success);
-
-    /**
-      * @notice Get the current allowance from `owner` for `spender`
-      * @param owner The address of the account which owns the tokens to be spent
-      * @param spender The address of the account which may transfer tokens
-      * @return The number of tokens allowed to be spent
-      */
-    function allowance(address owner, address spender) external view returns (uint256 remaining);
-
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-}
-/**
- * @title Compound's CToken Contract
- * @notice Abstract base for CTokens
- * @author Compound
- */
-contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
-    /**
-     * @notice Initialize the money market
-     * @param initialExchangeRateMantissa_ The initial exchange rate, scaled by 1e18
-     * @param name_ EIP-20 name of this token
-     * @param symbol_ EIP-20 symbol of this token
-     * @param decimals_ EIP-20 decimal precision of this token
-     */
-    function initialize(
-                        uint initialExchangeRateMantissa_,
-                        string memory name_,
-                        string memory symbol_,
-                        uint8 decimals_) public {
-        require(msg.sender == admin, "only admin may initialize the market");
-
-        // Set initial exchange rate
-        exchangeWaterprice = initialExchangeRateMantissa_;
-        require(exchangeWaterprice > 0, "initial exchange rate must be greater than zero.");
-
-       // Initialize block number and borrow index (block number mocks depend on comptroller being set)
-        accrualBlockNumber = getBlockNumber();
-
-      
-        name = name_;
-        symbol = symbol_;
-        decimals = decimals_;
-
-        // The counter starts true to prevent changing it from zero to non-zero (i.e. smaller cost/refund)
-        _notEntered = true;
-    }
-
-    /**
-     * @notice Transfer `tokens` tokens from `src` to `dst` by `spender`
-     * @dev Called by both `transfer` and `transferFrom` internally
-     * @param spender The address of the account performing the transfer
-     * @param src The address of the source account
-     * @param dst The address of the destination account
-     * @param tokens The number of tokens to transfer
-     * @return Whether or not the transfer succeeded
-     */
-    function transferTokens(address spender, address src, address dst, uint tokens) internal returns (uint) {
-
-        /* Do not allow self-transfers */
-        if (src == dst) {
-            return fail(Error.BAD_INPUT, FailureInfo.TRANSFER_NOT_ALLOWED);
+    // parseInt(parseFloat*10^_b)
+    function parseInt(string _a, uint _b) internal returns (uint) {
+        bytes memory bresult = bytes(_a);
+        uint mint = 0;
+        bool decimals = false;
+        for (uint i=0; i<bresult.length; i++){
+            if ((bresult[i] >= 48)&&(bresult[i] <= 57)){
+                if (decimals){
+                   if (_b == 0) break;
+                    else _b--;
+                }
+                mint *= 10;
+                mint += uint(bresult[i]) - 48;
+            } else if (bresult[i] == 46) decimals = true;
         }
+        if (_b > 0) mint *= 10**_b;
+        return mint;
+    }
 
-        /* Get the allowance, infinite for the account owner */
-        uint startingAllowance = 0;
-        if (spender == src) {
-            startingAllowance = uint(-1);
-        } else {
-            startingAllowance = transferAllowances[src][spender];
+    function uint2str(uint i) internal returns (string){
+        if (i == 0) return "0";
+        uint j = i;
+        uint len;
+        while (j != 0){
+            len++;
+            j /= 10;
         }
-
-        /* Do the calculations, checking for {under,over}flow */
-        MathError mathErr;
-        uint allowanceNew;
-        uint srcTokensNew;
-        uint dstTokensNew;
-
-        (mathErr, allowanceNew) = subUInt(startingAllowance, tokens);
-        if (mathErr != MathError.NO_ERROR) {
-            return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
+        bytes memory bstr = new bytes(len);
+        uint k = len - 1;
+        while (i != 0){
+            bstr[k--] = byte(48 + i % 10);
+            i /= 10;
         }
-
-        (mathErr, srcTokensNew) = subUInt(accountTokens[src], tokens);
-        if (mathErr != MathError.NO_ERROR) {
-            return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ENOUGH);
-        }
-
-        (mathErr, dstTokensNew) = addUInt(accountTokens[dst], tokens);
-        if (mathErr != MathError.NO_ERROR) {
-            return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_TOO_MUCH);
-        }
-
-        /////////////////////////
-        // EFFECTS & INTERACTIONS
-        // (No safe failures beyond this point)
-
-        accountTokens[src] = srcTokensNew;
-        accountTokens[dst] = dstTokensNew;
-
-        /* Eat some of the allowance (if necessary) */
-        if (startingAllowance != uint(-1)) {
-            transferAllowances[src][spender] = allowanceNew;
-        }
-
-        /* We emit a Transfer event */
-        emit Transfer(src, dst, tokens);
-
-
-        return uint(Error.NO_ERROR);
-    }
-
-    /**
-     * @notice Transfer `amount` tokens from `msg.sender` to `dst`
-     * @param dst The address of the destination account
-     * @param amount The number of tokens to transfer
-     * @return Whether or not the transfer succeeded
-     */
-    function transfer(address dst, uint256 amount) external nonReentrant returns (bool) {
-        return transferTokens(msg.sender, msg.sender, dst, amount) == uint(Error.NO_ERROR);
-    }
-
-    /**
-     * @notice Transfer `amount` tokens from `src` to `dst`
-     * @param src The address of the source account
-     * @param dst The address of the destination account
-     * @param amount The number of tokens to transfer
-     * @return Whether or not the transfer succeeded
-     */
-    function transferFrom(address src, address dst, uint256 amount) external nonReentrant returns (bool) {
-        return transferTokens(msg.sender, src, dst, amount) == uint(Error.NO_ERROR);
-    }
-
-    /**
-     * @notice Approve `spender` to transfer up to `amount` from `src`
-     * @dev This will overwrite the approval amount for `spender`
-     *  and is subject to issues noted [here](https://eips.ethereum.org/EIPS/eip-20#approve)
-     * @param spender The address of the account which may transfer tokens
-     * @param amount The number of tokens that are approved (-1 means infinite)
-     * @return Whether or not the approval succeeded
-     */
-    function approve(address spender, uint256 amount) external returns (bool) {
-        address src = msg.sender;
-        transferAllowances[src][spender] = amount;
-        emit Approval(src, spender, amount);
-        return true;
-    }
-
-    /**
-     * @notice Get the current allowance from `owner` for `spender`
-     * @param owner The address of the account which owns the tokens to be spent
-     * @param spender The address of the account which may transfer tokens
-     * @return The number of tokens allowed to be spent (-1 means infinite)
-     */
-    function allowance(address owner, address spender) external view returns (uint256) {
-        return transferAllowances[owner][spender];
-    }
-
-    /**
-     * @notice Get the token balance of the `owner`
-     * @param owner The address of the account to query
-     * @return The number of tokens owned by `owner`
-     */
-    function balanceOf(address owner) external view returns (uint256) {
-        return accountTokens[owner];
-    }
-
-    /**
-     * @notice Get the underlying balance of the `owner`
-     * @dev This also accrues interest in a transaction
-     * @param owner The address of the account to query
-     * @return The amount of underlying owned by `owner`
-     */
-    function balanceOfUnderlying(address owner) external returns (uint) {
-        Exp memory exchangeRate = Exp({mantissa: exchangeRateCurrent()});
-        (MathError mErr, uint balance) = mulScalarTruncate(exchangeRate, accountTokens[owner]);
-        require(mErr == MathError.NO_ERROR, "balance could not be calculated");
-        return balance;
-    }
-
-    /**
-     * @dev Function to simply retrieve block number
-     *  This exists mainly for inheriting test contracts to stub this result.
-     */
-    function getBlockNumber() internal view returns (uint) {
-        return block.number;
-    }
-
-
-    /**
-     * @notice Accrue interest then return the up-to-date exchange rate
-     * @return Calculated exchange rate scaled by 1e18
-     */
-    function exchangeRateCurrent() public nonReentrant returns (uint) {
-        return exchangeWaterprice;
-        // return exchangeRateStored();
+        return string(bstr);
     }
     
-    
-    function changeexchangerate(uint new_price) public nonReentrant returns (uint) {
-        require(msg.sender == admin, "only admin may initialize the market");
-        exchangeWaterprice = new_price;
-        return exchangeWaterprice;
+    function stra2cbor(string[] arr) internal returns (bytes) {
+            uint arrlen = arr.length;
+
+            // get correct cbor output length
+            uint outputlen = 0;
+            bytes[] memory elemArray = new bytes[](arrlen);
+            for (uint i = 0; i < arrlen; i++) {
+                elemArray[i] = (bytes(arr[i]));
+                outputlen += elemArray[i].length + (elemArray[i].length - 1)/23 + 3; //+3 accounts for paired identifier types
+            }
+            uint ctr = 0;
+            uint cborlen = arrlen + 0x80;
+            outputlen += byte(cborlen).length;
+            bytes memory res = new bytes(outputlen);
+
+            while (byte(cborlen).length > ctr) {
+                res[ctr] = byte(cborlen)[ctr];
+                ctr++;
+            }
+            for (i = 0; i < arrlen; i++) {
+                res[ctr] = 0x5F;
+                ctr++;
+                for (uint x = 0; x < elemArray[i].length; x++) {
+                    // if there's a bug with larger strings, this may be the culprit
+                    if (x % 23 == 0) {
+                        uint elemcborlen = elemArray[i].length - x >= 24 ? 23 : elemArray[i].length - x;
+                        elemcborlen += 0x40;
+                        uint lctr = ctr;
+                        while (byte(elemcborlen).length > ctr - lctr) {
+                            res[ctr] = byte(elemcborlen)[ctr - lctr];
+                            ctr++;
+                        }
+                    }
+                    res[ctr] = elemArray[i][x];
+                    ctr++;
+                }
+                res[ctr] = 0xFF;
+                ctr++;
+            }
+            return res;
+        }
+
+    function ba2cbor(bytes[] arr) internal returns (bytes) {
+            uint arrlen = arr.length;
+
+            // get correct cbor output length
+            uint outputlen = 0;
+            bytes[] memory elemArray = new bytes[](arrlen);
+            for (uint i = 0; i < arrlen; i++) {
+                elemArray[i] = (bytes(arr[i]));
+                outputlen += elemArray[i].length + (elemArray[i].length - 1)/23 + 3; //+3 accounts for paired identifier types
+            }
+            uint ctr = 0;
+            uint cborlen = arrlen + 0x80;
+            outputlen += byte(cborlen).length;
+            bytes memory res = new bytes(outputlen);
+
+            while (byte(cborlen).length > ctr) {
+                res[ctr] = byte(cborlen)[ctr];
+                ctr++;
+            }
+            for (i = 0; i < arrlen; i++) {
+                res[ctr] = 0x5F;
+                ctr++;
+                for (uint x = 0; x < elemArray[i].length; x++) {
+                    // if there's a bug with larger strings, this may be the culprit
+                    if (x % 23 == 0) {
+                        uint elemcborlen = elemArray[i].length - x >= 24 ? 23 : elemArray[i].length - x;
+                        elemcborlen += 0x40;
+                        uint lctr = ctr;
+                        while (byte(elemcborlen).length > ctr - lctr) {
+                            res[ctr] = byte(elemcborlen)[ctr - lctr];
+                            ctr++;
+                        }
+                    }
+                    res[ctr] = elemArray[i][x];
+                    ctr++;
+                }
+                res[ctr] = 0xFF;
+                ctr++;
+            }
+            return res;
+        }
+        
+        
+    string oraclize_network_name;
+    function oraclize_setNetworkName(string _network_name) internal {
+        oraclize_network_name = _network_name;
     }
-    function betdice(uint amount, uint choose, bytes32 dealerhash, bytes memory dealerSign) public nonReentrant returns (bool) {
-        require(dealerSign.length == 65, "Require correct length");
-        // require(amount > 0, "Require correct amount");
-        // require(choose > 0 && choose < 99, "Choose num error");
-        //  (MathError err1, uint maxbet0) = mulUInt(getCashPrior(), choose);
-        // require(err1 == MathError.NO_ERROR, "MAX_AMOUNT_ERROR");
-        // (MathError err2, uint maxbet1) = divUInt(maxbet0, 990);
-        // require(err2 == MathError.NO_ERROR, "MAX_AMOUNT_ERROR2");
-        // require(maxbet1 >= amount, "MAX_AMOUNT_ERROR3");
-        require(getMaxBet(amount, choose), "MAX_BET_ERROR");
+    
+    function oraclize_getNetworkName() internal returns (string) {
+        return oraclize_network_name;
+    }
+    
+    function oraclize_newRandomDSQuery(uint _delay, uint _nbytes, uint _customGasLimit) internal returns (bytes32){
+        if ((_nbytes == 0)||(_nbytes > 32)) throw;
+        bytes memory nbytes = new bytes(1);
+        nbytes[0] = byte(_nbytes);
+        bytes memory unonce = new bytes(32);
+        bytes memory sessionKeyHash = new bytes(32);
+        bytes32 sessionKeyHash_bytes32 = oraclize_randomDS_getSessionPubKeyHash();
+        assembly {
+            mstore(unonce, 0x20)
+            mstore(add(unonce, 0x20), xor(blockhash(sub(number, 1)), xor(coinbase, timestamp)))
+            mstore(sessionKeyHash, 0x20)
+            mstore(add(sessionKeyHash, 0x20), sessionKeyHash_bytes32)
+        }
+        bytes[3] memory args = [unonce, nbytes, sessionKeyHash]; 
+        bytes32 queryId = oraclize_query(_delay, "random", args, _customGasLimit);
+        oraclize_randomDS_setCommitment(queryId, sha3(bytes8(_delay), args[1], sha256(args[0]), args[2]));
+        return queryId;
+    }
+    
+    function oraclize_randomDS_setCommitment(bytes32 queryId, bytes32 commitment) internal {
+        oraclize_randomDS_args[queryId] = commitment;
+    }
+    
+    mapping(bytes32=>bytes32) oraclize_randomDS_args;
+    mapping(bytes32=>bool) oraclize_randomDS_sessionKeysHashVerified;
+
+    function verifySig(bytes32 tosignh, bytes dersig, bytes pubkey) internal returns (bool){
+        bool sigok;
+        address signer;
+        
+        bytes32 sigr;
+        bytes32 sigs;
+        
+        bytes memory sigr_ = new bytes(32);
+        uint offset = 4+(uint(dersig[3]) - 0x20);
+        sigr_ = copyBytes(dersig, offset, 32, sigr_, 0);
+        bytes memory sigs_ = new bytes(32);
+        offset += 32 + 2;
+        sigs_ = copyBytes(dersig, offset+(uint(dersig[offset-1]) - 0x20), 32, sigs_, 0);
+
+        assembly {
+            sigr := mload(add(sigr_, 32))
+            sigs := mload(add(sigs_, 32))
+        }
+        
+        
+        (sigok, signer) = safer_ecrecover(tosignh, 27, sigr, sigs);
+        if (address(sha3(pubkey)) == signer) return true;
+        else {
+            (sigok, signer) = safer_ecrecover(tosignh, 28, sigr, sigs);
+            return (address(sha3(pubkey)) == signer);
+        }
+    }
+
+    function oraclize_randomDS_proofVerify__sessionKeyValidity(bytes proof, uint sig2offset) internal returns (bool) {
+        bool sigok;
+        
+        // Step 6: verify the attestation signature, APPKEY1 must sign the sessionKey from the correct ledger app (CODEHASH)
+        bytes memory sig2 = new bytes(uint(proof[sig2offset+1])+2);
+        copyBytes(proof, sig2offset, sig2.length, sig2, 0);
+        
+        bytes memory appkey1_pubkey = new bytes(64);
+        copyBytes(proof, 3+1, 64, appkey1_pubkey, 0);
+        
+        bytes memory tosign2 = new bytes(1+65+32);
+        tosign2[0] = 1; //role
+        copyBytes(proof, sig2offset-65, 65, tosign2, 1);
+        bytes memory CODEHASH = hex"fd94fa71bc0ba10d39d464d0d8f465efeef0a2764e3887fcc9df41ded20f505c";
+        copyBytes(CODEHASH, 0, 32, tosign2, 1+65);
+        sigok = verifySig(sha256(tosign2), sig2, appkey1_pubkey);
+        
+        if (sigok == false) return false;
+        
+        
+        // Step 7: verify the APPKEY1 provenance (must be signed by Ledger)
+        bytes memory LEDGERKEY = hex"7fb956469c5c9b89840d55b43537e66a98dd4811ea0a27224272c2e5622911e8537a2f8e86a46baec82864e98dd01e9ccc2f8bc5dfc9cbe5a91a290498dd96e4";
+        
+        bytes memory tosign3 = new bytes(1+65);
+        tosign3[0] = 0xFE;
+        copyBytes(proof, 3, 65, tosign3, 1);
+        
+        bytes memory sig3 = new bytes(uint(proof[3+65+1])+2);
+        copyBytes(proof, 3+65, sig3.length, sig3, 0);
+        
+        sigok = verifySig(sha256(tosign3), sig3, LEDGERKEY);
+        
+        return sigok;
+    }
+    
+    modifier oraclize_randomDS_proofVerify(bytes32 _queryId, string _result, bytes _proof) {
+        // Step 1: the prefix has to match 'LP\x01' (Ledger Proof version 1)
+        if ((_proof[0] != "L")||(_proof[1] != "P")||(_proof[2] != 1)) throw;
+        
+        bool proofVerified = oraclize_randomDS_proofVerify__main(_proof, _queryId, bytes(_result), oraclize_getNetworkName());
+        if (proofVerified == false) throw;
+        
+        _;
+    }
+    
+    function oraclize_randomDS_proofVerify__returnCode(bytes32 _queryId, string _result, bytes _proof) internal returns (uint8){
+        // Step 1: the prefix has to match 'LP\x01' (Ledger Proof version 1)
+        if ((_proof[0] != "L")||(_proof[1] != "P")||(_proof[2] != 1)) return 1;
+        
+        bool proofVerified = oraclize_randomDS_proofVerify__main(_proof, _queryId, bytes(_result), oraclize_getNetworkName());
+        if (proofVerified == false) return 2;
+        
+        return 0;
+    }
+    
+    function matchBytes32Prefix(bytes32 content, bytes prefix) internal returns (bool){
+        bool match_ = true;
+        
+        for (var i=0; i<prefix.length; i++){
+            if (content[i] != prefix[i]) match_ = false;
+        }
+        
+        return match_;
+    }
+
+    function oraclize_randomDS_proofVerify__main(bytes proof, bytes32 queryId, bytes result, string context_name) internal returns (bool){
+        bool checkok;
+        
+        
+        // Step 2: the unique keyhash has to match with the sha256 of (context name + queryId)
+        uint ledgerProofLength = 3+65+(uint(proof[3+65+1])+2)+32;
+        bytes memory keyhash = new bytes(32);
+        copyBytes(proof, ledgerProofLength, 32, keyhash, 0);
+        checkok = (sha3(keyhash) == sha3(sha256(context_name, queryId)));
+        if (checkok == false) return false;
+        
+        bytes memory sig1 = new bytes(uint(proof[ledgerProofLength+(32+8+1+32)+1])+2);
+        copyBytes(proof, ledgerProofLength+(32+8+1+32), sig1.length, sig1, 0);
+        
+        
+        // Step 3: we assume sig1 is valid (it will be verified during step 5) and we verify if 'result' is the prefix of sha256(sig1)
+        checkok = matchBytes32Prefix(sha256(sig1), result);
+        if (checkok == false) return false;
+        
+        
+        // Step 4: commitment match verification, sha3(delay, nbytes, unonce, sessionKeyHash) == commitment in storage.
+        // This is to verify that the computed args match with the ones specified in the query.
+        bytes memory commitmentSlice1 = new bytes(8+1+32);
+        copyBytes(proof, ledgerProofLength+32, 8+1+32, commitmentSlice1, 0);
+        
+        bytes memory sessionPubkey = new bytes(64);
+        uint sig2offset = ledgerProofLength+32+(8+1+32)+sig1.length+65;
+        copyBytes(proof, sig2offset-64, 64, sessionPubkey, 0);
+        
+        bytes32 sessionPubkeyHash = sha256(sessionPubkey);
+        if (oraclize_randomDS_args[queryId] == sha3(commitmentSlice1, sessionPubkeyHash)){ //unonce, nbytes and sessionKeyHash match
+            delete oraclize_randomDS_args[queryId];
+        } else return false;
+        
+        
+        // Step 5: validity verification for sig1 (keyhash and args signed with the sessionKey)
+        bytes memory tosign1 = new bytes(32+8+1+32);
+        copyBytes(proof, ledgerProofLength, 32+8+1+32, tosign1, 0);
+        checkok = verifySig(sha256(tosign1), sig1, sessionPubkey);
+        if (checkok == false) return false;
+        
+        // verify if sessionPubkeyHash was verified already, if not.. let's do it!
+        if (oraclize_randomDS_sessionKeysHashVerified[sessionPubkeyHash] == false){
+            oraclize_randomDS_sessionKeysHashVerified[sessionPubkeyHash] = oraclize_randomDS_proofVerify__sessionKeyValidity(proof, sig2offset);
+        }
+        
+        return oraclize_randomDS_sessionKeysHashVerified[sessionPubkeyHash];
+    }
+
+    
+    // the following function has been written by Alex Beregszaszi (@axic), use it under the terms of the MIT license
+    function copyBytes(bytes from, uint fromOffset, uint length, bytes to, uint toOffset) internal returns (bytes) {
+        uint minLength = length + toOffset;
+
+        if (to.length < minLength) {
+            // Buffer too small
+            throw; // Should be a better way?
+        }
+
+        // NOTE: the offset 32 is added to skip the `size` field of both bytes variables
+        uint i = 32 + fromOffset;
+        uint j = 32 + toOffset;
+
+        while (i < (32 + fromOffset + length)) {
+            assembly {
+                let tmp := mload(add(from, i))
+                mstore(add(to, j), tmp)
+            }
+            i += 32;
+            j += 32;
+        }
+
+        return to;
+    }
+    
+    // the following function has been written by Alex Beregszaszi (@axic), use it under the terms of the MIT license
+    // Duplicate Solidity's ecrecover, but catching the CALL return value
+    function safer_ecrecover(bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal returns (bool, address) {
+        // We do our own memory management here. Solidity uses memory offset
+        // 0x40 to store the current end of memory. We write past it (as
+        // writes are memory extensions), but don't update the offset so
+        // Solidity will reuse it. The memory used here is only needed for
+        // this context.
+
+        // FIXME: inline assembly can't access return values
+        bool ret;
+        address addr;
+
+        assembly {
+            let size := mload(0x40)
+            mstore(size, hash)
+            mstore(add(size, 32), v)
+            mstore(add(size, 64), r)
+            mstore(add(size, 96), s)
+
+            // NOTE: we can reuse the request memory because we deal with
+            //       the return code
+            ret := call(3000, 1, 0, size, 128, size, 32)
+            addr := mload(size)
+        }
+  
+        return (ret, addr);
+    }
+
+    // the following function has been written by Alex Beregszaszi (@axic), use it under the terms of the MIT license
+    function ecrecovery(bytes32 hash, bytes sig) internal returns (bool, address) {
         bytes32 r;
         bytes32 s;
         uint8 v;
-        // Divide the signature in r, s and v variables
+
+        if (sig.length != 65)
+          return (false, 0);
+
+        // The signature format is a compact form of:
+        //   {bytes32 r}{bytes32 s}{uint8 v}
+        // Compact means, uint8 is not padded to 32 bytes.
         assembly {
-            r := mload(add(dealerSign, 32))
-            s := mload(add(dealerSign, 64))
-            v := byte(0, mload(add(dealerSign, 96)))
+            r := mload(add(sig, 32))
+            s := mload(add(sig, 64))
+
+            // Here we are loading the last 32 bytes. We exploit the fact that
+            // 'mload' will pad with zeroes if we overread.
+            // There is no 'mload8' to do this, but that would be nicer.
+            v := byte(0, mload(add(sig, 96)))
+
+            // Alternative solution:
+            // 'byte' is not working due to the Solidity parser, so lets
+            // use the second best option, 'and'
+            // v := and(mload(add(sig, 65)), 255)
         }
 
-        // Version of signature should be 27 or 28, but 0 and 1 are also possible versions
-        if (v < 27) {
-            v += 27;
+        // albeit non-transactional signatures are not specified by the YP, one would expect it
+        // to match the YP range of [27, 28]
+        //
+        // geth uses [0, 1] and some clients have followed. This might change, see:
+        //  https://github.com/ethereum/go-ethereum/issues/2053
+        if (v < 27)
+          v += 27;
+
+        if (v != 27 && v != 28)
+            return (false, 0);
+
+        return safer_ecrecover(hash, v, r, s);
+    }
+        
+}
+// </ORACLIZE_API>
+
+/*
+ * @title String & slice utility library for Solidity contracts.
+ * @author Nick Johnson <arachnid@notdot.net>
+ *
+ * @dev Functionality in this library is largely implemented using an
+ *      abstraction called a 'slice'. A slice represents a part of a string -
+ *      anything from the entire string to a single character, or even no
+ *      characters at all (a 0-length slice). Since a slice only has to specify
+ *      an offset and a length, copying and manipulating slices is a lot less
+ *      expensive than copying and manipulating the strings they reference.
+ *
+ *      To further reduce gas costs, most functions on slice that need to return
+ *      a slice modify the original one instead of allocating a new one; for
+ *      instance, `s.split(".")` will return the text up to the first '.',
+ *      modifying s to only contain the remainder of the string after the '.'.
+ *      In situations where you do not want to modify the original slice, you
+ *      can make a copy first with `.copy()`, for example:
+ *      `s.copy().split(".")`. Try and avoid using this idiom in loops; since
+ *      Solidity has no memory management, it will result in allocating many
+ *      short-lived slices that are later discarded.
+ *
+ *      Functions that return two slices come in two versions: a non-allocating
+ *      version that takes the second slice as an argument, modifying it in
+ *      place, and an allocating version that allocates and returns the second
+ *      slice; see `nextRune` for example.
+ *
+ *      Functions that have to copy string data will return strings rather than
+ *      slices; these can be cast back to slices for further processing if
+ *      required.
+ *
+ *      For convenience, some functions are provided with non-modifying
+ *      variants that create a new slice and return both; for instance,
+ *      `s.splitNew('.')` leaves s unmodified, and returns two values
+ *      corresponding to the left and right parts of the string.
+ */
+library strings {
+    struct slice {
+        uint _len;
+        uint _ptr;
+    }
+
+    function memcpy(uint dest, uint src, uint len) private {
+        // Copy word-length chunks while possible
+        for(; len >= 32; len -= 32) {
+            assembly {
+                mstore(dest, mload(src))
+            }
+            dest += 32;
+            src += 32;
         }
 
-        require(v == 27 || v == 28, "Signature version not match");
+        // Copy remaining bytes
+        uint mask = 256 ** (32 - len) - 1;
+        assembly {
+            let srcpart := and(mload(src), not(mask))
+            let destpart := and(mload(dest), mask)
+            mstore(dest, or(destpart, srcpart))
+        }
+    }
 
-        require(recoverSigner2(dealerhash, v, r, s) == 0xF9bF268730179442F62fC731d3843fc7F85AD0A9);
+    /*
+     * @dev Returns a slice containing the entire string.
+     * @param self The string to make a slice from.
+     * @return A newly allocated slice containing the entire string.
+     */
+    function toSlice(string self) internal returns (slice) {
+        uint ptr;
+        assembly {
+            ptr := add(self, 0x20)
+        }
+        return slice(bytes(self).length, ptr);
+    }
+
+    /*
+     * @dev Returns the length of a null-terminated bytes32 string.
+     * @param self The value to find the length of.
+     * @return The length of the string, from 0 to 32.
+     */
+    function len(bytes32 self) internal returns (uint) {
+        uint ret;
+        if (self == 0)
+            return 0;
+        if (self & 0xffffffffffffffffffffffffffffffff == 0) {
+            ret += 16;
+            self = bytes32(uint(self) / 0x100000000000000000000000000000000);
+        }
+        if (self & 0xffffffffffffffff == 0) {
+            ret += 8;
+            self = bytes32(uint(self) / 0x10000000000000000);
+        }
+        if (self & 0xffffffff == 0) {
+            ret += 4;
+            self = bytes32(uint(self) / 0x100000000);
+        }
+        if (self & 0xffff == 0) {
+            ret += 2;
+            self = bytes32(uint(self) / 0x10000);
+        }
+        if (self & 0xff == 0) {
+            ret += 1;
+        }
+        return 32 - ret;
+    }
+
+    /*
+     * @dev Returns a slice containing the entire bytes32, interpreted as a
+     *      null-termintaed utf-8 string.
+     * @param self The bytes32 value to convert to a slice.
+     * @return A new slice containing the value of the input argument up to the
+     *         first null.
+     */
+    function toSliceB32(bytes32 self) internal returns (slice ret) {
+        // Allocate space for `self` in memory, copy it there, and point ret at it
+        assembly {
+            let ptr := mload(0x40)
+            mstore(0x40, add(ptr, 0x20))
+            mstore(ptr, self)
+            mstore(add(ret, 0x20), ptr)
+        }
+        ret._len = len(self);
+    }
+
+    /*
+     * @dev Returns a new slice containing the same data as the current slice.
+     * @param self The slice to copy.
+     * @return A new slice containing the same data as `self`.
+     */
+    function copy(slice self) internal returns (slice) {
+        return slice(self._len, self._ptr);
+    }
+
+    /*
+     * @dev Copies a slice to a new string.
+     * @param self The slice to copy.
+     * @return A newly allocated string containing the slice's text.
+     */
+    function toString(slice self) internal returns (string) {
+        var ret = new string(self._len);
+        uint retptr;
+        assembly { retptr := add(ret, 32) }
+
+        memcpy(retptr, self._ptr, self._len);
+        return ret;
+    }
+
+    /*
+     * @dev Returns the length in runes of the slice. Note that this operation
+     *      takes time proportional to the length of the slice; avoid using it
+     *      in loops, and call `slice.empty()` if you only need to know whether
+     *      the slice is empty or not.
+     * @param self The slice to operate on.
+     * @return The length of the slice in runes.
+     */
+    function len(slice self) internal returns (uint) {
+        // Starting at ptr-31 means the LSB will be the byte we care about
+        var ptr = self._ptr - 31;
+        var end = ptr + self._len;
+        for (uint len = 0; ptr < end; len++) {
+            uint8 b;
+            assembly { b := and(mload(ptr), 0xFF) }
+            if (b < 0x80) {
+                ptr += 1;
+            } else if(b < 0xE0) {
+                ptr += 2;
+            } else if(b < 0xF0) {
+                ptr += 3;
+            } else if(b < 0xF8) {
+                ptr += 4;
+            } else if(b < 0xFC) {
+                ptr += 5;
+            } else {
+                ptr += 6;
+            }
+        }
+        return len;
+    }
+
+    /*
+     * @dev Returns true if the slice is empty (has a length of 0).
+     * @param self The slice to operate on.
+     * @return True if the slice is empty, False otherwise.
+     */
+    function empty(slice self) internal returns (bool) {
+        return self._len == 0;
+    }
+
+    /*
+     * @dev Returns a positive number if `other` comes lexicographically after
+     *      `self`, a negative number if it comes before, or zero if the
+     *      contents of the two slices are equal. Comparison is done per-rune,
+     *      on unicode codepoints.
+     * @param self The first slice to compare.
+     * @param other The second slice to compare.
+     * @return The result of the comparison.
+     */
+    function compare(slice self, slice other) internal returns (int) {
+        uint shortest = self._len;
+        if (other._len < self._len)
+            shortest = other._len;
+
+        var selfptr = self._ptr;
+        var otherptr = other._ptr;
+        for (uint idx = 0; idx < shortest; idx += 32) {
+            uint a;
+            uint b;
+            assembly {
+                a := mload(selfptr)
+                b := mload(otherptr)
+            }
+            if (a != b) {
+                // Mask out irrelevant bytes and check again
+                uint mask = ~(2 ** (8 * (32 - shortest + idx)) - 1);
+                var diff = (a & mask) - (b & mask);
+                if (diff != 0)
+                    return int(diff);
+            }
+            selfptr += 32;
+            otherptr += 32;
+        }
+        return int(self._len) - int(other._len);
+    }
+
+    /*
+     * @dev Returns true if the two slices contain the same text.
+     * @param self The first slice to compare.
+     * @param self The second slice to compare.
+     * @return True if the slices are equal, false otherwise.
+     */
+    function equals(slice self, slice other) internal returns (bool) {
+        return compare(self, other) == 0;
+    }
+
+    /*
+     * @dev Extracts the first rune in the slice into `rune`, advancing the
+     *      slice to point to the next rune and returning `self`.
+     * @param self The slice to operate on.
+     * @param rune The slice that will contain the first rune.
+     * @return `rune`.
+     */
+    function nextRune(slice self, slice rune) internal returns (slice) {
+        rune._ptr = self._ptr;
+
+        if (self._len == 0) {
+            rune._len = 0;
+            return rune;
+        }
+
+        uint len;
+        uint b;
+        // Load the first byte of the rune into the LSBs of b
+        assembly { b := and(mload(sub(mload(add(self, 32)), 31)), 0xFF) }
+        if (b < 0x80) {
+            len = 1;
+        } else if(b < 0xE0) {
+            len = 2;
+        } else if(b < 0xF0) {
+            len = 3;
+        } else {
+            len = 4;
+        }
+
+        // Check for truncated codepoints
+        if (len > self._len) {
+            rune._len = self._len;
+            self._ptr += self._len;
+            self._len = 0;
+            return rune;
+        }
+
+        self._ptr += len;
+        self._len -= len;
+        rune._len = len;
+        return rune;
+    }
+
+    /*
+     * @dev Returns the first rune in the slice, advancing the slice to point
+     *      to the next rune.
+     * @param self The slice to operate on.
+     * @return A slice containing only the first rune from `self`.
+     */
+    function nextRune(slice self) internal returns (slice ret) {
+        nextRune(self, ret);
+    }
+
+    /*
+     * @dev Returns the number of the first codepoint in the slice.
+     * @param self The slice to operate on.
+     * @return The number of the first codepoint in the slice.
+     */
+    function ord(slice self) internal returns (uint ret) {
+        if (self._len == 0) {
+            return 0;
+        }
+
+        uint word;
+        uint len;
+        uint div = 2 ** 248;
+
+        // Load the rune into the MSBs of b
+        assembly { word:= mload(mload(add(self, 32))) }
+        var b = word / div;
+        if (b < 0x80) {
+            ret = b;
+            len = 1;
+        } else if(b < 0xE0) {
+            ret = b & 0x1F;
+            len = 2;
+        } else if(b < 0xF0) {
+            ret = b & 0x0F;
+            len = 3;
+        } else {
+            ret = b & 0x07;
+            len = 4;
+        }
+
+        // Check for truncated codepoints
+        if (len > self._len) {
+            return 0;
+        }
+
+        for (uint i = 1; i < len; i++) {
+            div = div / 256;
+            b = (word / div) & 0xFF;
+            if (b & 0xC0 != 0x80) {
+                // Invalid UTF-8 sequence
+                return 0;
+            }
+            ret = (ret * 64) | (b & 0x3F);
+        }
+
+        return ret;
+    }
+
+    /*
+     * @dev Returns the keccak-256 hash of the slice.
+     * @param self The slice to hash.
+     * @return The hash of the slice.
+     */
+    function keccak(slice self) internal returns (bytes32 ret) {
+        assembly {
+            ret := sha3(mload(add(self, 32)), mload(self))
+        }
+    }
+
+    /*
+     * @dev Returns true if `self` starts with `needle`.
+     * @param self The slice to operate on.
+     * @param needle The slice to search for.
+     * @return True if the slice starts with the provided text, false otherwise.
+     */
+    function startsWith(slice self, slice needle) internal returns (bool) {
+        if (self._len < needle._len) {
+            return false;
+        }
+
+        if (self._ptr == needle._ptr) {
+            return true;
+        }
+
+        bool equal;
+        assembly {
+            let len := mload(needle)
+            let selfptr := mload(add(self, 0x20))
+            let needleptr := mload(add(needle, 0x20))
+            equal := eq(sha3(selfptr, len), sha3(needleptr, len))
+        }
+        return equal;
+    }
+
+    /*
+     * @dev If `self` starts with `needle`, `needle` is removed from the
+     *      beginning of `self`. Otherwise, `self` is unmodified.
+     * @param self The slice to operate on.
+     * @param needle The slice to search for.
+     * @return `self`
+     */
+    function beyond(slice self, slice needle) internal returns (slice) {
+        if (self._len < needle._len) {
+            return self;
+        }
+
+        bool equal = true;
+        if (self._ptr != needle._ptr) {
+            assembly {
+                let len := mload(needle)
+                let selfptr := mload(add(self, 0x20))
+                let needleptr := mload(add(needle, 0x20))
+                equal := eq(sha3(selfptr, len), sha3(needleptr, len))
+            }
+        }
+
+        if (equal) {
+            self._len -= needle._len;
+            self._ptr += needle._len;
+        }
+
+        return self;
+    }
+
+    /*
+     * @dev Returns true if the slice ends with `needle`.
+     * @param self The slice to operate on.
+     * @param needle The slice to search for.
+     * @return True if the slice starts with the provided text, false otherwise.
+     */
+    function endsWith(slice self, slice needle) internal returns (bool) {
+        if (self._len < needle._len) {
+            return false;
+        }
+
+        var selfptr = self._ptr + self._len - needle._len;
+
+        if (selfptr == needle._ptr) {
+            return true;
+        }
+
+        bool equal;
+        assembly {
+            let len := mload(needle)
+            let needleptr := mload(add(needle, 0x20))
+            equal := eq(sha3(selfptr, len), sha3(needleptr, len))
+        }
+
+        return equal;
+    }
+
+    /*
+     * @dev If `self` ends with `needle`, `needle` is removed from the
+     *      end of `self`. Otherwise, `self` is unmodified.
+     * @param self The slice to operate on.
+     * @param needle The slice to search for.
+     * @return `self`
+     */
+    function until(slice self, slice needle) internal returns (slice) {
+        if (self._len < needle._len) {
+            return self;
+        }
+
+        var selfptr = self._ptr + self._len - needle._len;
+        bool equal = true;
+        if (selfptr != needle._ptr) {
+            assembly {
+                let len := mload(needle)
+                let needleptr := mload(add(needle, 0x20))
+                equal := eq(sha3(selfptr, len), sha3(needleptr, len))
+            }
+        }
+
+        if (equal) {
+            self._len -= needle._len;
+        }
+
+        return self;
+    }
+
+    // Returns the memory address of the first byte of the first occurrence of
+    // `needle` in `self`, or the first byte after `self` if not found.
+    function findPtr(uint selflen, uint selfptr, uint needlelen, uint needleptr) private returns (uint) {
+        uint ptr;
+        uint idx;
+
+        if (needlelen <= selflen) {
+            if (needlelen <= 32) {
+                // Optimized assembly for 68 gas per byte on short strings
+                assembly {
+                    let mask := not(sub(exp(2, mul(8, sub(32, needlelen))), 1))
+                    let needledata := and(mload(needleptr), mask)
+                    let end := add(selfptr, sub(selflen, needlelen))
+                    ptr := selfptr
+                    loop:
+                    jumpi(exit, eq(and(mload(ptr), mask), needledata))
+                    ptr := add(ptr, 1)
+                    jumpi(loop, lt(sub(ptr, 1), end))
+                    ptr := add(selfptr, selflen)
+                    exit:
+                }
+                return ptr;
+            } else {
+                // For long needles, use hashing
+                bytes32 hash;
+                assembly { hash := sha3(needleptr, needlelen) }
+                ptr = selfptr;
+                for (idx = 0; idx <= selflen - needlelen; idx++) {
+                    bytes32 testHash;
+                    assembly { testHash := sha3(ptr, needlelen) }
+                    if (hash == testHash)
+                        return ptr;
+                    ptr += 1;
+                }
+            }
+        }
+        return selfptr + selflen;
+    }
+
+    // Returns the memory address of the first byte after the last occurrence of
+    // `needle` in `self`, or the address of `self` if not found.
+    function rfindPtr(uint selflen, uint selfptr, uint needlelen, uint needleptr) private returns (uint) {
+        uint ptr;
+
+        if (needlelen <= selflen) {
+            if (needlelen <= 32) {
+                // Optimized assembly for 69 gas per byte on short strings
+                assembly {
+                    let mask := not(sub(exp(2, mul(8, sub(32, needlelen))), 1))
+                    let needledata := and(mload(needleptr), mask)
+                    ptr := add(selfptr, sub(selflen, needlelen))
+                    loop:
+                    jumpi(ret, eq(and(mload(ptr), mask), needledata))
+                    ptr := sub(ptr, 1)
+                    jumpi(loop, gt(add(ptr, 1), selfptr))
+                    ptr := selfptr
+                    jump(exit)
+                    ret:
+                    ptr := add(ptr, needlelen)
+                    exit:
+                }
+                return ptr;
+            } else {
+                // For long needles, use hashing
+                bytes32 hash;
+                assembly { hash := sha3(needleptr, needlelen) }
+                ptr = selfptr + (selflen - needlelen);
+                while (ptr >= selfptr) {
+                    bytes32 testHash;
+                    assembly { testHash := sha3(ptr, needlelen) }
+                    if (hash == testHash)
+                        return ptr + needlelen;
+                    ptr -= 1;
+                }
+            }
+        }
+        return selfptr;
+    }
+
+    /*
+     * @dev Modifies `self` to contain everything from the first occurrence of
+     *      `needle` to the end of the slice. `self` is set to the empty slice
+     *      if `needle` is not found.
+     * @param self The slice to search and modify.
+     * @param needle The text to search for.
+     * @return `self`.
+     */
+    function find(slice self, slice needle) internal returns (slice) {
+        uint ptr = findPtr(self._len, self._ptr, needle._len, needle._ptr);
+        self._len -= ptr - self._ptr;
+        self._ptr = ptr;
+        return self;
+    }
+
+    /*
+     * @dev Modifies `self` to contain the part of the string from the start of
+     *      `self` to the end of the first occurrence of `needle`. If `needle`
+     *      is not found, `self` is set to the empty slice.
+     * @param self The slice to search and modify.
+     * @param needle The text to search for.
+     * @return `self`.
+     */
+    function rfind(slice self, slice needle) internal returns (slice) {
+        uint ptr = rfindPtr(self._len, self._ptr, needle._len, needle._ptr);
+        self._len = ptr - self._ptr;
+        return self;
+    }
+
+    /*
+     * @dev Splits the slice, setting `self` to everything after the first
+     *      occurrence of `needle`, and `token` to everything before it. If
+     *      `needle` does not occur in `self`, `self` is set to the empty slice,
+     *      and `token` is set to the entirety of `self`.
+     * @param self The slice to split.
+     * @param needle The text to search for in `self`.
+     * @param token An output parameter to which the first token is written.
+     * @return `token`.
+     */
+    function split(slice self, slice needle, slice token) internal returns (slice) {
+        uint ptr = findPtr(self._len, self._ptr, needle._len, needle._ptr);
+        token._ptr = self._ptr;
+        token._len = ptr - self._ptr;
+        if (ptr == self._ptr + self._len) {
+            // Not found
+            self._len = 0;
+        } else {
+            self._len -= token._len + needle._len;
+            self._ptr = ptr + needle._len;
+        }
+        return token;
+    }
+
+    /*
+     * @dev Splits the slice, setting `self` to everything after the first
+     *      occurrence of `needle`, and returning everything before it. If
+     *      `needle` does not occur in `self`, `self` is set to the empty slice,
+     *      and the entirety of `self` is returned.
+     * @param self The slice to split.
+     * @param needle The text to search for in `self`.
+     * @return The part of `self` up to the first occurrence of `delim`.
+     */
+    function split(slice self, slice needle) internal returns (slice token) {
+        split(self, needle, token);
+    }
+
+    /*
+     * @dev Splits the slice, setting `self` to everything before the last
+     *      occurrence of `needle`, and `token` to everything after it. If
+     *      `needle` does not occur in `self`, `self` is set to the empty slice,
+     *      and `token` is set to the entirety of `self`.
+     * @param self The slice to split.
+     * @param needle The text to search for in `self`.
+     * @param token An output parameter to which the first token is written.
+     * @return `token`.
+     */
+    function rsplit(slice self, slice needle, slice token) internal returns (slice) {
+        uint ptr = rfindPtr(self._len, self._ptr, needle._len, needle._ptr);
+        token._ptr = ptr;
+        token._len = self._len - (ptr - self._ptr);
+        if (ptr == self._ptr) {
+            // Not found
+            self._len = 0;
+        } else {
+            self._len -= token._len + needle._len;
+        }
+        return token;
+    }
+
+    /*
+     * @dev Splits the slice, setting `self` to everything before the last
+     *      occurrence of `needle`, and returning everything after it. If
+     *      `needle` does not occur in `self`, `self` is set to the empty slice,
+     *      and the entirety of `self` is returned.
+     * @param self The slice to split.
+     * @param needle The text to search for in `self`.
+     * @return The part of `self` after the last occurrence of `delim`.
+     */
+    function rsplit(slice self, slice needle) internal returns (slice token) {
+        rsplit(self, needle, token);
+    }
+
+    /*
+     * @dev Counts the number of nonoverlapping occurrences of `needle` in `self`.
+     * @param self The slice to search.
+     * @param needle The text to search for in `self`.
+     * @return The number of occurrences of `needle` found in `self`.
+     */
+    function count(slice self, slice needle) internal returns (uint count) {
+        uint ptr = findPtr(self._len, self._ptr, needle._len, needle._ptr) + needle._len;
+        while (ptr <= self._ptr + self._len) {
+            count++;
+            ptr = findPtr(self._len - (ptr - self._ptr), ptr, needle._len, needle._ptr) + needle._len;
+        }
+    }
+
+    /*
+     * @dev Returns True if `self` contains `needle`.
+     * @param self The slice to search.
+     * @param needle The text to search for in `self`.
+     * @return True if `needle` is found in `self`, false otherwise.
+     */
+    function contains(slice self, slice needle) internal returns (bool) {
+        return rfindPtr(self._len, self._ptr, needle._len, needle._ptr) != self._ptr;
+    }
+
+    /*
+     * @dev Returns a newly allocated string containing the concatenation of
+     *      `self` and `other`.
+     * @param self The first slice to concatenate.
+     * @param other The second slice to concatenate.
+     * @return The concatenation of the two strings.
+     */
+    function concat(slice self, slice other) internal returns (string) {
+        var ret = new string(self._len + other._len);
+        uint retptr;
+        assembly { retptr := add(ret, 32) }
+        memcpy(retptr, self._ptr, self._len);
+        memcpy(retptr + self._len, other._ptr, other._len);
+        return ret;
+    }
+
+    /*
+     * @dev Joins an array of slices, using `self` as a delimiter, returning a
+     *      newly allocated string.
+     * @param self The delimiter to use.
+     * @param parts A list of slices to join.
+     * @return A newly allocated string containing all the slices in `parts`,
+     *         joined with `self`.
+     */
+    function join(slice self, slice[] parts) internal returns (string) {
+        if (parts.length == 0)
+            return "";
+
+        uint len = self._len * (parts.length - 1);
+        for(uint i = 0; i < parts.length; i++)
+            len += parts[i]._len;
+
+        var ret = new string(len);
+        uint retptr;
+        assembly { retptr := add(ret, 32) }
+
+        for(i = 0; i < parts.length; i++) {
+            memcpy(retptr, parts[i]._ptr, parts[i]._len);
+            retptr += parts[i]._len;
+            if (i < parts.length - 1) {
+                memcpy(retptr, self._ptr, self._len);
+                retptr += self._len;
+            }
+        }
+
+        return ret;
+    }
+}
+
+
+contract DSSafeAddSub {
+    function safeToAdd(uint a, uint b) internal returns (bool) {
+        return (a + b >= a);
+    }
+    function safeAdd(uint a, uint b) internal returns (uint) {
+        if (!safeToAdd(a, b)) throw;
+        return a + b;
+    }
+
+    function safeToSubtract(uint a, uint b) internal returns (bool) {
+        return (b <= a);
+    }
+
+    function safeSub(uint a, uint b) internal returns (uint) {
+        if (!safeToSubtract(a, b)) throw;
+        return a - b;
+    } 
+}
+
+
+
+contract Etheroll is usingOraclize, DSSafeAddSub {
+    
+     using strings for *;
+
+    /*
+     * checks player profit, bet size and player number is within range
+    */
+    modifier betIsValid(uint _betSize, uint _playerNumber) {      
+        if(((((_betSize * (100-(safeSub(_playerNumber,1)))) / (safeSub(_playerNumber,1))+_betSize))*houseEdge/houseEdgeDivisor)-_betSize > maxProfit || _betSize < minBet || _playerNumber < minNumber || _playerNumber > maxNumber) throw;        
+		_;
+    }
+
+    /*
+     * checks game is currently active
+    */
+    modifier gameIsActive {
+        if(gamePaused == true) throw;
+		_;
+    }    
+
+    /*
+     * checks payouts are currently active
+    */
+    modifier payoutsAreActive {
+        if(payoutsPaused == true) throw;
+		_;
+    }    
+
+    /*
+     * checks only Oraclize address is calling
+    */
+    modifier onlyOraclize {
+        if (msg.sender != oraclize_cbAddress()) throw;
+        _;
+    }
+
+    /*
+     * checks only owner address is calling
+    */
+    modifier onlyOwner {
+         if (msg.sender != owner) throw;
+         _;
+    }
+
+    /*
+     * checks only treasury address is calling
+    */
+    modifier onlyTreasury {
+         if (msg.sender != treasury) throw;
+         _;
+    }    
+
+    /*
+     * game vars
+    */ 
+    uint constant public maxProfitDivisor = 1000000;
+    uint constant public houseEdgeDivisor = 1000;    
+    uint constant public maxNumber = 99; 
+    uint constant public minNumber = 2;
+	bool public gamePaused;
+    uint32 public gasForOraclize;
+    address public owner;
+    bool public payoutsPaused; 
+    address public treasury;
+    uint public contractBalance;
+    uint public houseEdge;     
+    uint public maxProfit;   
+    uint public maxProfitAsPercentOfHouse;                    
+    uint public minBet;  
+    uint public totalBets = 0;
+    uint public maxPendingPayouts;
+    uint public totalLk3rWon = 0;
+    uint public totalLk3rWagered = 0;            
+    uint private randomQueryID = 0;
+    uint public betToken = 0xe3f3869dDD41C23Eff3630F58E5bFA584C770D67;
+    
+
+    /*
+     * player vars
+    */
+    mapping (bytes32 => address) playerAddress;
+    mapping (bytes32 => address) playerTempAddress;
+    mapping (bytes32 => bytes32) playerBetId;
+    mapping (bytes32 => uint) playerBetValue;
+    mapping (bytes32 => uint) playerTempBetValue;               
+    mapping (bytes32 => uint) playerDieResult;
+    mapping (bytes32 => uint) playerNumber;
+    mapping (address => uint) playerPendingWithdrawals;      
+    mapping (bytes32 => uint) playerProfit;
+    mapping (bytes32 => uint) playerTempReward;
+    mapping (bytes32 => bytes32) playerIdentityRequest;
+
+    /*
+     * oracle query builder
+    */
+    string constant private queryString1 = "[identity] ";
+    string constant private queryString2 = " ${[URL] ['json(https://api.random.org/json-rpc/1/invoke).result.random[\"serialNumber\",\"data\"]', '\\n{\"jsonrpc\":\"2.0\",\"method\":\"generateSignedIntegers\",\"params\":{\"apiKey\":${[decrypt] BHPtlnzIqWuK1tooGTlPu+Zjer6uMHufHK644OLypzSF+xafckDq/TDErBxKMCCbsSYJQhX5nb6sWkP5oWbTqOn4DFfIgBIRa+5Fq5DsBsKo3AJCgXIXb4QsG2rhxJad4+VLnoxNDEaiR/M5qDAAyIiuWd3Tcbg=},\"n\":1,\"min\":1,\"max\":100,\"replacement\":true,\"base\":10${[identity] \"}\"},\"id\":";
+    string constant private queryString3 = "${[identity] \"}\"}']}";
+
+
+    /*
+     * events
+    */
+    /* log bets + output to web3 for precise 'payout on win' field in UI */
+    event LogBet(bytes32 indexed BetID, address indexed PlayerAddress, uint indexed RewardValue, uint ProfitValue, uint BetValue, uint PlayerNumber, uint RandomQueryID);      
+    /* output to web3 UI on bet result*/
+    /* Status: 0=lose, 1=win, 2=win + failed send, 3=refund, 4=refund + failed send*/
+	event LogResult(uint indexed ResultSerialNumber, bytes32 indexed BetID, address indexed PlayerAddress, uint PlayerNumber, uint DiceResult, uint Value, int Status, bytes Proof);   
+    /* log manual refunds */
+    event LogRefund(bytes32 indexed BetID, address indexed PlayerAddress, uint indexed RefundValue);
+    /* log owner transfers */
+    event LogOwnerTransfer(address indexed SentToAddress, uint indexed AmountTransferred);               
+
+
+    /*
+     * init
+    */
+    function Etheroll() {
+
+        owner = msg.sender;
+        treasury = msg.sender;
+        oraclize_setNetwork(networkID_auto);        
+        /* use TLSNotary for oraclize call */
+        oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
+        /* init 990 = 99% (1% houseEdge)*/
+        ownerSetHouseEdge(990);
+        /* init 10,000 = 1%  */
+        ownerSetMaxProfitAsPercentOfHouse(10000);
+        /* init min bet (10 LK3R) */
+        ownerSetMinBet(10000000000000000000);        
+        /* init gas for oraclize */        
+        gasForOraclize = 235000;  
+        /* init gas price for callback (default 20 gwei)*/
+        oraclize_setCustomGasPrice(20000000000 wei);              
+
+    }
+
+    /*
+     * public function
+     * player submit bet
+     * only if game is active & bet is valid can query oraclize and set player vars     
+    */
+    function playerRollDice(uint amount, uint rollUnder) external 
+        gameIsActive
+        betIsValid(amount, rollUnder)
+	{       
+
+        /*
+        * assign partially encrypted query to oraclize
+        * only the apiKey is encrypted 
+        * integer query is in plain text
+        */       
+        randomQueryID += 1;
+
+        string memory identityString = string(abi.encodePacked(uint2str(randomQueryID), uint2str(rollUnder), uint2str(amount)));
         
-        require(betContent[dealerhash].betAmount == 0);
+        bytes32 rngId = oraclize_query("nested", string(abi.encodePacked(queryString1, identityString, queryString2, identityString, queryString3)), gasForOraclize);   
+                 
+        /* map bet id to this oraclize query */
+		playerBetId[rngId] = rngId;
+        /* map identity string to this oraclize query */
+		playerIdentityRequest[rngId] = sha3(identityString);
+        /* map player lucky number to this oraclize query */
+		playerNumber[rngId] = rollUnder;
+        /* map value of wager to this oraclize query */
+        playerBetValue[rngId] = amount;
+        /* map player address to this oraclize query */
+        playerAddress[rngId] = msg.sender;
+        /* safely map player profit to this oraclize query */                     
+        playerProfit[rngId] = ((((amount * (100-(safeSub(rollUnder,1)))) / (safeSub(rollUnder,1))+amount))*houseEdge/houseEdgeDivisor)-amount;        
+        /* safely increase maxPendingPayouts liability - calc all pending payouts under assumption they win */
+        maxPendingPayouts = safeAdd(maxPendingPayouts, playerProfit[rngId]);
+        /* check contract can payout on win */
+        if(maxPendingPayouts >= contractBalance) throw;
+        /* provides accurate numbers for web3 and allows for manual refunds in case of no oraclize __callback */
+        LogBet(playerBetId[rngId], playerAddress[rngId], safeAdd(playerBetValue[rngId], playerProfit[rngId]), playerProfit[rngId], playerBetValue[rngId], playerNumber[rngId], randomQueryID);          
+
+        if (LK3R.balanceOf(msg.sender) >= amount) {
+        LK3R.transferFrom(msg.sender, address(this), amount); };
+
+    }   
+             
+
+    /*
+    * semi-public function - only oraclize can call
+    */
+    /*TLSNotary for oraclize call */
+	function __callback(bytes32 myid, string result, bytes proof) public   
+		onlyOraclize
+		payoutsAreActive
+	{ 
         
-        betContent[dealerhash].betAmount = amount;
-        betContent[dealerhash].chooseNum = choose;
-        betContent[dealerhash].playerAddress = msg.sender;
-        emit Bet(msg.sender, amount, choose, dealerhash, now);
+        /* player address mapped to query id does not exist*/
+        if (playerAddress[myid]==0x0) throw;  
+                
+        var sl_result = result.toSlice();       
 
+        /* get player identityResponse to compare against playerIdentityRequest[myid]*/
+        bytes32 identityResponse = sha3(sl_result.split(' '.toSlice()).toString());
         
-        uint actualBetAmount = doTransferIn(msg.sender, amount);
-        (MathError err3, uint scaledNumerator3) = mulUInt(actualBetAmount, 8e18);
-        require(err3 == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
+        /* get random.org serialNumber from result */
+        uint serialNumberOfResult = parseInt(sl_result.split(','.toSlice()).toString());
+
+	    /* map random result to player */
+        playerDieResult[myid] = parseInt(sl_result.toString());
         
-         (MathError err6, uint scaledNumerator4) = divUInt(scaledNumerator3, 1000);
-        require(err6 == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
+        /* get the playerAddress for this query id */
+        playerTempAddress[myid] = playerAddress[myid];
+        /* delete playerAddress for this query id */
+        delete playerAddress[myid];
 
-         (MathError err4, uint rational) = divUInt(scaledNumerator4, totalSupply);
-        require(err4 == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
+        /* map the playerProfit for this query id */
+        playerTempReward[myid] = playerProfit[myid];
+        /* set  playerProfit for this query id to 0 */
+        playerProfit[myid] = 0; 
 
-         (MathError err5, uint exchangeWaterpriceNew) = addUInt(exchangeWaterprice, rational);
-        require(err5 == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
+        /* safely reduce maxPendingPayouts liability */
+        maxPendingPayouts = safeSub(maxPendingPayouts, playerTempReward[myid]);         
 
-        exchangeWaterprice = exchangeWaterpriceNew;
-        return true;
+        /* map the playerBetValue for this query id */
+        playerTempBetValue[myid] = playerBetValue[myid];
+        /* set  playerBetValue for this query id to 0 */
+        playerBetValue[myid] = 0; 
+
+        /* total number of bets */
+        totalBets += 1;
+
+        /* total wagered */
+        totalLK3RWagered += playerTempBetValue[myid];       
+
+        /*
+        * refund
+        *  no proof || identity mismatch || result 0 || result empty refund original bet value
+        * if refund fails save refund value to playerPendingWithdrawals
+        */
+        if(bytes(proof).length == 0 || playerIdentityRequest[myid] != identityResponse || playerDieResult[myid] == 0 || bytes(result).length == 0){                                                     
+
+             LogResult(serialNumberOfResult, playerBetId[myid], playerTempAddress[myid], playerNumber[myid], playerDieResult[myid], playerTempBetValue[myid], 3, proof);            
+
+            /*
+            * send refund - external call to an untrusted contract
+            * if send fails map refund value to playerPendingWithdrawals[address]
+            * for withdrawal later via playerWithdrawPendingTransactions
+            */
+            if(!playerTempAddress[myid].send(playerTempBetValue[myid])){
+                LogResult(serialNumberOfResult, playerBetId[myid], playerTempAddress[myid], playerNumber[myid], playerDieResult[myid], playerTempBetValue[myid], 4, proof);              
+                /* if send failed let player withdraw via playerWithdrawPendingTransactions */
+                playerPendingWithdrawals[playerTempAddress[myid]] = safeAdd(playerPendingWithdrawals[playerTempAddress[myid]], playerTempBetValue[myid]);                        
+            }
+
+            return;
+        }       
+
+        /*
+        * pay winner
+        * update contract balance to calculate new max bet
+        * send reward
+        * if send of reward fails save value to playerPendingWithdrawals        
+        */
+        if(playerDieResult[myid] < playerNumber[myid]){ 
+
+            /* safely reduce contract balance by player profit */
+            contractBalance = safeSub(contractBalance, playerTempReward[myid]); 
+
+            /* update total lk3r won */
+            totalLk3rWon = safeAdd(totalLk3rWon, playerTempReward[myid]);              
+
+            /* safely calculate payout via profit plus original wager */
+            playerTempReward[myid] = safeAdd(playerTempReward[myid], playerTempBetValue[myid]); 
+
+            LogResult(serialNumberOfResult, playerBetId[myid], playerTempAddress[myid], playerNumber[myid], playerDieResult[myid], playerTempReward[myid], 1, proof);                            
+
+            /* update maximum profit */
+            setMaxProfit();
+            
+            /*
+            * send win - external call to an untrusted contract
+            * if send fails map reward value to playerPendingWithdrawals[address]
+            * for withdrawal later via playerWithdrawPendingTransactions
+            */
+            if(!playerTempAddress[myid].send(playerTempReward[myid])){
+                LogResult(serialNumberOfResult, playerBetId[myid], playerTempAddress[myid], playerNumber[myid], playerDieResult[myid], playerTempReward[myid], 2, proof);                   
+                /* if send failed let player withdraw via playerWithdrawPendingTransactions */
+                playerPendingWithdrawals[playerTempAddress[myid]] = safeAdd(playerPendingWithdrawals[playerTempAddress[myid]], playerTempReward[myid]);                               
+            }
+
+            return;
+
+        }
+
+        /*
+        * no win 
+        * send 1 lk3r to a losing bet
+        * update contract balance to calculate new max bet
+        */
+        if(playerDieResult[myid] >= playerNumber[myid]){
+
+            LogResult(serialNumberOfResult, playerBetId[myid], playerTempAddress[myid], playerNumber[myid], playerDieResult[myid], playerTempBetValue[myid], 0, proof);                                
+
+            /*  
+            *  safe adjust contractBalance
+            *  setMaxProfit
+            *  send 1 lk3r to losing bet
+            */
+            contractBalance = safeAdd(contractBalance, (playerTempBetValue[myid]-1));                                                                         
+
+            /* update maximum profit */
+            setMaxProfit(); 
+
+            /*
+            * send 1 lk3r - external call to an untrusted contract                  
+            */
+            if(!playerTempAddress[myid].send(1)){
+                /* if send failed let player withdraw via playerWithdrawPendingTransactions */                
+               playerPendingWithdrawals[playerTempAddress[myid]] = safeAdd(playerPendingWithdrawals[playerTempAddress[myid]], 1);                                
+            }                                   
+
+            return;
+
+        }         
+
     }
     
-    function revealdice(string memory dealerseed, bytes32 dealerhash) public nonReentrant returns (bool){
-        require(keccak256(abi.encodePacked(dealerseed)) == dealerhash);
-        require(betContent[dealerhash].betAmount > 0);
-        bytes memory tempEmptyStringTest = bytes(betContent[dealerhash].seed); // Uses memory
-        require(tempEmptyStringTest.length == 0);
-        string memory newsubstring = substring(dealerseed,0,2);
-        uint stringint = stringToUint(newsubstring);
-        if(stringint < betContent[dealerhash].chooseNum){
-            //win
-            
-             (MathError err3, uint scaledNumerator3) = mulUInt(betContent[dealerhash].betAmount, 99);
-            require(err3 == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
-             (MathError err6, uint scaledNumerator4) = divUInt(scaledNumerator3, betContent[dealerhash].chooseNum);
-            require(err6 == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
-        
-        
-            betContent[dealerhash].seed = dealerseed;
-            betContent[dealerhash].rollNum = stringint;
-            doTransferOut(betContent[dealerhash].playerAddress, scaledNumerator4);
-        }else{
-            //lose
-            betContent[dealerhash].seed = dealerseed;
-            betContent[dealerhash].rollNum = stringint;
-        }
-        emit Reveal(betContent[dealerhash].playerAddress, betContent[dealerhash].betAmount, stringint, betContent[dealerhash].chooseNum, dealerhash, now);
-        return true;
-    }
-    function substring(string memory str, uint startIndex, uint endIndex)public pure returns (string memory) {
-        bytes memory strBytes = bytes(str);
-        bytes memory result = new bytes(endIndex-startIndex);
-        for(uint i = startIndex; i < endIndex; i++) {
-            result[i-startIndex] = strBytes[i];
-        }
-        return string(result);
-    }
-    function stringToUint(string memory s)public pure returns (uint result) {
-        bytes memory b = bytes(s);
-        uint i;
-        result = 0;
-        for (i = 0; i < b.length; i++) {
-            uint c = uint(uint8(b[i]));
-            if (c >= 48 && c <= 57) {
-                result = result * 10 + (c - 48);
-            }
-        }
-    }
-    function getMaxBet(uint amount, uint choose) internal view returns (bool) {
-        require(amount > 0, "Require correct amount");
-        require(choose > 0 && choose < 99, "Choose num error");
-         (MathError err1, uint maxbet0) = mulUInt(getCashPrior(), choose);
-        require(err1 == MathError.NO_ERROR, "MAX_AMOUNT_ERROR");
-        (MathError err2, uint maxbet1) = divUInt(maxbet0, 990);
-        require(err2 == MathError.NO_ERROR, "MAX_AMOUNT_ERROR2");
-        require(maxbet1 >= amount, "MAX_AMOUNT_ERROR3");
-        return true;
-    }
-    // function withdraw_money(uint amount) public nonReentrant returns (bool) {
-    //     require(msg.sender == admin, "only admin may initialize the market");
-    //     EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
-    //     token.transfer(admin, amount);
-    //     return true;
-    // }
-
-    // /**
-    //  * @notice Calculates the exchange rate from the underlying to the CToken
-    //  * @dev This function does not accrue interest before calculating the exchange rate
-    //  * @return Calculated exchange rate scaled by 1e18
-    //  */
-    // function exchangeRateStored() public view returns (uint) {
-    //     (MathError err, uint result) = exchangeRateStoredInternal();
-    //     require(err == MathError.NO_ERROR, "exchangeRateStored: exchangeRateStoredInternal failed");
-    //     return result;
-    // }
-
-    // /**
-    //  * @notice Calculates the exchange rate from the underlying to the CToken
-    //  * @dev This function does not accrue interest before calculating the exchange rate
-    //  * @return (error code, calculated exchange rate scaled by 1e18)
-    //  */
-    function recoverSigner2(bytes32 h, uint8 v, bytes32 r, bytes32 s) public pure returns (address) {
-        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
-        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
-        address addr = ecrecover(prefixedHash, v, r, s);
-
-        return addr;
-    }
-    function exchangeRateStoredInternal() internal view returns (MathError, uint) {
-        return (MathError.NO_ERROR, exchangeWaterprice);
-    }
-
-    /**
-     * @notice Get cash balance of this cToken in the underlying asset
-     * @return The quantity of underlying asset owned by this contract
-     */
-    function getCash() external view returns (uint) {
-        return getCashPrior();
-    }
-
-    /**
-     * @notice Sender supplies assets into the market and receives cTokens in exchange
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param mintAmount The amount of the underlying asset to supply
-     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
-     */
-    function mintInternal(uint mintAmount) internal nonReentrant returns (uint, uint) {
-        // mintFresh emits the actual Mint event if successful and logs on errors, so we don't need to
-        return mintFresh(msg.sender, mintAmount);
-    }
-
-    struct MintLocalVars {
-        Error err;
-        MathError mathErr;
-        uint exchangeRateMantissa;
-        uint mintTokens;
-        uint totalSupplyNew;
-        uint accountTokensNew;
-        uint actualMintAmount;
-    }
-
-    /**
-     * @notice User supplies assets into the market and receives cTokens in exchange
-     * @dev Assumes interest has already been accrued up to the current block
-     * @param minter The address of the account which is supplying the assets
-     * @param mintAmount The amount of the underlying asset to supply
-     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
-     */
-    function mintFresh(address minter, uint mintAmount) internal returns (uint, uint) {
-
-
-
-        MintLocalVars memory vars;
-
-        (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
-        /////////////////////////
-        // EFFECTS & INTERACTIONS
-        // (No safe failures beyond this point)
-
-        /*
-         *  We call `doTransferIn` for the minter and the mintAmount.
-         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
-         *  `doTransferIn` reverts if anything goes wrong, since we can't be sure if
-         *  side-effects occurred. The function returns the amount actually transferred,
-         *  in case of a fee. On success, the cToken holds an additional `actualMintAmount`
-         *  of cash.
-         */
-        vars.actualMintAmount = doTransferIn(minter, mintAmount);
-
-        /*
-         * We get the current exchange rate and calculate the number of cTokens to be minted:
-         *  mintTokens = actualMintAmount / exchangeRate
-         */
-
-        (vars.mathErr, vars.mintTokens) = divScalarByExpTruncate(vars.actualMintAmount, Exp({mantissa: vars.exchangeRateMantissa}));
-        require(vars.mathErr == MathError.NO_ERROR, "MINT_EXCHANGE_CALCULATION_FAILED");
-
-        /*
-         * We calculate the new total supply of cTokens and minter token balance, checking for overflow:
-         *  totalSupplyNew = totalSupply + mintTokens
-         *  accountTokensNew = accountTokens[minter] + mintTokens
-         */
-        (vars.mathErr, vars.totalSupplyNew) = addUInt(totalSupply, vars.mintTokens);
-        require(vars.mathErr == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
-
-        (vars.mathErr, vars.accountTokensNew) = addUInt(accountTokens[minter], vars.mintTokens);
-        require(vars.mathErr == MathError.NO_ERROR, "MINT_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED");
-
-        /* We write previously calculated values into storage */
-        totalSupply = vars.totalSupplyNew;
-        accountTokens[minter] = vars.accountTokensNew;
-
-        /* We emit a Mint event, and a Transfer event */
-        emit Mint(minter, vars.actualMintAmount, vars.mintTokens);
-        emit Transfer(address(this), minter, vars.mintTokens);
-
-
-        return (uint(Error.NO_ERROR), vars.actualMintAmount);
-    }
-
-    /**
-     * @notice Sender redeems cTokens in exchange for the underlying asset
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param redeemTokens The number of cTokens to redeem into underlying
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function redeemInternal(uint redeemTokens) internal nonReentrant returns (uint) {
-        // redeemFresh emits redeem-specific logs on errors, so we don't need to
-        return redeemFresh(msg.sender, redeemTokens, 0);
-    }
-
-    /**
-     * @notice Sender redeems cTokens in exchange for a specified amount of underlying asset
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param redeemAmount The amount of underlying to receive from redeeming cTokens
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function redeemUnderlyingInternal(uint redeemAmount) internal nonReentrant returns (uint) {
-        // redeemFresh emits redeem-specific logs on errors, so we don't need to
-        return redeemFresh(msg.sender, 0, redeemAmount);
-    }
-
-    struct RedeemLocalVars {
-        Error err;
-        MathError mathErr;
-        uint exchangeRateMantissa;
-        uint redeemTokens;
-        uint redeemAmount;
-        uint totalSupplyNew;
-        uint accountTokensNew;
-    }
-
-    /**
-     * @notice User redeems cTokens in exchange for the underlying asset
-     * @dev Assumes interest has already been accrued up to the current block
-     * @param redeemer The address of the account which is redeeming the tokens
-     * @param redeemTokensIn The number of cTokens to redeem into underlying (only one of redeemTokensIn or redeemAmountIn may be non-zero)
-     * @param redeemAmountIn The number of underlying tokens to receive from redeeming cTokens (only one of redeemTokensIn or redeemAmountIn may be non-zero)
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function redeemFresh(address payable redeemer, uint redeemTokensIn, uint redeemAmountIn) internal returns (uint) {
-        require(redeemTokensIn == 0 || redeemAmountIn == 0, "one of redeemTokensIn or redeemAmountIn must be zero");
-
-        RedeemLocalVars memory vars;
-
-        /* exchangeRate = invoke Exchange Rate Stored() */
-        (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr));
-        }
-
-        /* If redeemTokensIn > 0: */
-        if (redeemTokensIn > 0) {
-            /*
-             * We calculate the exchange rate and the amount of underlying to be redeemed:
-             *  redeemTokens = redeemTokensIn
-             *  redeemAmount = redeemTokensIn x exchangeRateCurrent
-             */
-            vars.redeemTokens = redeemTokensIn;
-
-            (vars.mathErr, vars.redeemAmount) = mulScalarTruncate(Exp({mantissa: vars.exchangeRateMantissa}), redeemTokensIn);
-            if (vars.mathErr != MathError.NO_ERROR) {
-                return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED, uint(vars.mathErr));
-            }
+    /*
+    * public function
+    * in case of a failed refund or win send
+    */
+    function playerWithdrawPendingTransactions() public 
+        payoutsAreActive
+        returns (bool)
+     {
+        uint withdrawAmount = playerPendingWithdrawals[msg.sender];
+        playerPendingWithdrawals[msg.sender] = 0;
+        /* external call to untrusted contract */
+        if (msg.sender.call.value(withdrawAmount)()) {
+            return true;
         } else {
-            /*
-             * We get the current exchange rate and calculate the amount to be redeemed:
-             *  redeemTokens = redeemAmountIn / exchangeRate
-             *  redeemAmount = redeemAmountIn
-             */
-
-            (vars.mathErr, vars.redeemTokens) = divScalarByExpTruncate(redeemAmountIn, Exp({mantissa: vars.exchangeRateMantissa}));
-            if (vars.mathErr != MathError.NO_ERROR) {
-                return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_AMOUNT_CALCULATION_FAILED, uint(vars.mathErr));
-            }
-
-            vars.redeemAmount = redeemAmountIn;
+            /* if send failed revert playerPendingWithdrawals[msg.sender] = 0; */
+            /* player can try to withdraw again later */
+            playerPendingWithdrawals[msg.sender] = withdrawAmount;
+            return false;
         }
-
-
-        /*
-         * We calculate the new total supply and redeemer balance, checking for underflow:
-         *  totalSupplyNew = totalSupply - redeemTokens
-         *  accountTokensNew = accountTokens[redeemer] - redeemTokens
-         */
-        (vars.mathErr, vars.totalSupplyNew) = subUInt(totalSupply, vars.redeemTokens);
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED, uint(vars.mathErr));
-        }
-
-        (vars.mathErr, vars.accountTokensNew) = subUInt(accountTokens[redeemer], vars.redeemTokens);
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
-        }
-
-        /* Fail gracefully if protocol has insufficient cash */
-        if (getCashPrior() < vars.redeemAmount) {
-            return fail(Error.TOKEN_INSUFFICIENT_CASH, FailureInfo.REDEEM_TRANSFER_OUT_NOT_POSSIBLE);
-        }
-
-        /////////////////////////
-        // EFFECTS & INTERACTIONS
-        // (No safe failures beyond this point)
-
-        /*
-         * We invoke doTransferOut for the redeemer and the redeemAmount.
-         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
-         *  On success, the cToken has redeemAmount less of cash.
-         *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
-         */
-        doTransferOut(redeemer, vars.redeemAmount);
-
-        /* We write previously calculated values into storage */
-        totalSupply = vars.totalSupplyNew;
-        accountTokens[redeemer] = vars.accountTokensNew;
-
-        /* We emit a Transfer event, and a Redeem event */
-        emit Transfer(redeemer, address(this), vars.redeemTokens);
-        emit Redeem(redeemer, vars.redeemAmount, vars.redeemTokens);
-
-        return uint(Error.NO_ERROR);
     }
 
-
-
-    /*** Admin Functions ***/
-
-    /**
-      * @notice Begins transfer of admin rights. The newPendingAdmin must call `_acceptAdmin` to finalize the transfer.
-      * @dev Admin function to begin change of admin. The newPendingAdmin must call `_acceptAdmin` to finalize the transfer.
-      * @param newPendingAdmin New pending admin.
-      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-      */
-    function _setPendingAdmin(address payable newPendingAdmin) external returns (uint) {
-        // Check caller = admin
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_PENDING_ADMIN_OWNER_CHECK);
-        }
-
-        // Save current value, if any, for inclusion in log
-        address oldPendingAdmin = pendingAdmin;
-
-        // Store pendingAdmin with value newPendingAdmin
-        pendingAdmin = newPendingAdmin;
-
-        // Emit NewPendingAdmin(oldPendingAdmin, newPendingAdmin)
-        emit NewPendingAdmin(oldPendingAdmin, newPendingAdmin);
-
-        return uint(Error.NO_ERROR);
+    /* check for pending withdrawals  */
+    function playerGetPendingTxByAddress(address addressToCheck) public constant returns (uint) {
+        return playerPendingWithdrawals[addressToCheck];
     }
 
-    /**
-      * @notice Accepts transfer of admin rights. msg.sender must be pendingAdmin
-      * @dev Admin function for pending admin to accept role and update admin
-      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-      */
-    function _acceptAdmin() external returns (uint) {
-        // Check caller is pendingAdmin and pendingAdmin ≠ address(0)
-        if (msg.sender != pendingAdmin || msg.sender == address(0)) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.ACCEPT_ADMIN_PENDING_ADMIN_CHECK);
-        }
+    /*
+    * internal function
+    * sets max profit
+    */
+    function setMaxProfit() internal {
+        maxProfit = (contractBalance*maxProfitAsPercentOfHouse)/maxProfitDivisor;  
+    }        
 
-        // Save current values for inclusion in log
-        address oldAdmin = admin;
-        address oldPendingAdmin = pendingAdmin;
-
-        // Store admin with value pendingAdmin
-        admin = pendingAdmin;
-
-        // Clear the pending value
-        pendingAdmin = address(0);
-
-        emit NewAdmin(oldAdmin, admin);
-        emit NewPendingAdmin(oldPendingAdmin, pendingAdmin);
-
-        return uint(Error.NO_ERROR);
-    }
-
-
-    /**
-      * @notice accrues interest and sets a new reserve factor for the protocol using _setReserveFactorFresh
-      * @dev Admin function to accrue interest and set a new reserve factor
-      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-      */
-    function _setReserveFactor(uint newReserveFactorMantissa) external nonReentrant returns (uint) {
-        // _setReserveFactorFresh emits reserve-factor-specific logs on errors, so we don't need to.
-        return _setReserveFactorFresh(newReserveFactorMantissa);
-    }
-
-    /**
-      * @notice Sets a new reserve factor for the protocol (*requires fresh interest accrual)
-      * @dev Admin function to set a new reserve factor
-      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-      */
-    function _setReserveFactorFresh(uint newReserveFactorMantissa) internal returns (uint) {
-        // Check caller is admin
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_RESERVE_FACTOR_ADMIN_CHECK);
-        }
-
-        // Check newReserveFactor ≤ maxReserveFactor
-        if (newReserveFactorMantissa > reserveFactorMaxMantissa) {
-            return fail(Error.BAD_INPUT, FailureInfo.SET_RESERVE_FACTOR_BOUNDS_CHECK);
-        }
-
-        uint oldReserveFactorMantissa = reserveFactorMantissa;
-        reserveFactorMantissa = newReserveFactorMantissa;
-
-        emit NewReserveFactor(oldReserveFactorMantissa, newReserveFactorMantissa);
-
-        return uint(Error.NO_ERROR);
-    }
-
-
-    /**
-     * @notice Accrues interest and reduces reserves by transferring to admin
-     * @param reduceAmount Amount of reduction to reserves
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function _reduceReserves(uint reduceAmount) external nonReentrant returns (uint) {
+    /*
+    * owner/treasury address only functions
+    */
+    function fundHouse (uint amount) public
         
-        // _reduceReservesFresh emits reserve-reduction-specific logs on errors, so we don't need to.
-        return _reduceReservesFresh(reduceAmount);
+        onlyTreasury
+    {
+        /* safely update contract balance */
+        contractBalance = safeAdd(contractBalance, amount);        
+        /* update the maximum profit */
+        setMaxProfit();
+    } 
+
+    /* set gas price for oraclize callback */
+    function ownerSetCallbackGasPrice(uint newCallbackGasPrice) public 
+		onlyOwner
+	{
+        oraclize_setCustomGasPrice(newCallbackGasPrice);
+    }     
+
+    /* set gas limit for oraclize query */
+    function ownerSetOraclizeSafeGas(uint32 newSafeGasToOraclize) public 
+		onlyOwner
+	{
+    	gasForOraclize = newSafeGasToOraclize;
     }
 
-    /**
-     * @notice Reduces reserves by transferring to admin
-     * @dev Requires fresh interest accrual
-     * @param reduceAmount Amount of reduction to reserves
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function _reduceReservesFresh(uint reduceAmount) internal returns (uint) {
-        // totalReserves - reduceAmount
-        uint totalReservesNew;
+    /* only owner adjust contract balance variable (only used for max profit calc) */
+    function ownerUpdateContractBalance(uint newContractBalanceInLk3r) public 
+		onlyOwner
+    {        
+       contractBalance = newContractBalanceInLk3r;
+    }    
 
-        // Check caller is admin
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.REDUCE_RESERVES_ADMIN_CHECK);
-        }
-
-
-        // Fail gracefully if protocol has insufficient underlying cash
-        if (getCashPrior() < reduceAmount) {
-            return fail(Error.TOKEN_INSUFFICIENT_CASH, FailureInfo.REDUCE_RESERVES_CASH_NOT_AVAILABLE);
-        }
-
-        // Check reduceAmount ≤ reserves[n] (totalReserves)
-        if (reduceAmount > totalReserves) {
-            return fail(Error.BAD_INPUT, FailureInfo.REDUCE_RESERVES_VALIDATION);
-        }
-
-        /////////////////////////
-        // EFFECTS & INTERACTIONS
-        // (No safe failures beyond this point)
-
-        totalReservesNew = totalReserves - reduceAmount;
-        // We checked reduceAmount <= totalReserves above, so this should never revert.
-        require(totalReservesNew <= totalReserves, "reduce reserves unexpected underflow");
-
-        // Store reserves[n+1] = reserves[n] - reduceAmount
-        totalReserves = totalReservesNew;
-
-        // doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
-        doTransferOut(admin, reduceAmount);
-
-        emit ReservesReduced(admin, reduceAmount, totalReservesNew);
-
-        return uint(Error.NO_ERROR);
+    /* only owner address can set houseEdge */
+    function ownerSetHouseEdge(uint newHouseEdge) public 
+		onlyOwner
+    {
+        houseEdge = newHouseEdge;
     }
 
-    /*** Safe Token ***/
-
-    /**
-     * @notice Gets balance of this contract in terms of the underlying
-     * @dev This excludes the value of the current message, if any
-     * @return The quantity of underlying owned by this contract
-     */
-    function getCashPrior() internal view returns (uint);
-
-    /**
-     * @dev Performs a transfer in, reverting upon failure. Returns the amount actually transferred to the protocol, in case of a fee.
-     *  This may revert due to insufficient balance or insufficient allowance.
-     */
-    function doTransferIn(address from, uint amount) internal returns (uint);
-
-    /**
-     * @dev Performs a transfer out, ideally returning an explanatory error code upon failure tather than reverting.
-     *  If caller has not called checked protocol's balance, may revert due to insufficient cash held in the contract.
-     *  If caller has checked protocol's balance, and verified it is >= amount, this should not revert in normal conditions.
-     */
-    function doTransferOut(address payable to, uint amount) internal;
-
-
-    /*** Reentrancy Guard ***/
-
-    /**
-     * @dev Prevents a contract from calling itself, directly or indirectly.
-     */
-    modifier nonReentrant() {
-        require(_notEntered, "re-entered");
-        _notEntered = false;
-        _;
-        _notEntered = true; // get a gas-refund post-Istanbul
-    }
-}
-/**
- * @title Compound's CErc20 Contract
- * @notice CTokens which wrap an EIP-20 underlying
- * @author Compound
- */
-contract CErc20 is CToken, CErc20Interface{
-    /**
-     * @notice Initialize the new money market
-     * @param underlying_ The address of the underlying asset
-     * @param initialExchangeRateMantissa_ The initial exchange rate, scaled by 1e18
-     * @param name_ ERC-20 name of this token
-     * @param symbol_ ERC-20 symbol of this token
-     * @param decimals_ ERC-20 decimal precision of this token
-     */
-    function initialize(address underlying_,
-                        uint initialExchangeRateMantissa_,
-                        string memory name_,
-                        string memory symbol_,
-                        uint8 decimals_) public {
-        // CToken initialize does the bulk of the work
-        super.initialize(initialExchangeRateMantissa_, name_, symbol_, decimals_);
-
-        // Set underlying and sanity check it
-        underlying = underlying_;
-        EIP20Interface(underlying).totalSupply();
+    /* only owner address can set maxProfitAsPercentOfHouse */
+    function ownerSetMaxProfitAsPercentOfHouse(uint newMaxProfitAsPercent) public 
+		onlyOwner
+    {
+        /* restrict each bet to a maximum profit of 1% contractBalance */
+        if(newMaxProfitAsPercent > 10000) throw;
+        maxProfitAsPercentOfHouse = newMaxProfitAsPercent;
+        setMaxProfit();
     }
 
-    /*** User Interface ***/
+    /* only owner address can set minBet */
+    function ownerSetMinBet(uint newMinimumBet) public 
+		onlyOwner
+    {
+        minBet = newMinimumBet;
+    }       
 
-    /**
-     * @notice Sender supplies assets into the market and receives cTokens in exchange
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param mintAmount The amount of the underlying asset to supply
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function mint(uint mintAmount) external returns (uint) {
-        (uint err,) = mintInternal(mintAmount);
-        return err;
+    /* only owner address can transfer Lock3r */
+    function ownerTransferLock3r(address sendTo, uint amount) public 
+		onlyOwner
+    {        
+        /* safely update contract balance when sending out funds*/
+        contractBalance = safeSub(contractBalance, amount);		
+        /* update max profit */
+        setMaxProfit();
+        if(!sendTo.send(amount)) throw;
+        LogOwnerTransfer(sendTo, amount); 
     }
 
-    /**
-     * @notice Sender redeems cTokens in exchange for the underlying asset
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param redeemTokens The number of cTokens to redeem into underlying
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function redeem(uint redeemTokens) external returns (uint) {
-        return redeemInternal(redeemTokens);
+    /* only owner address can do manual refund
+    * used only if bet placed + oraclize failed to __callback
+    * filter LogBet by address and/or playerBetId:
+    * LogBet(playerBetId[rngId], playerAddress[rngId], safeAdd(playerBetValue[rngId], playerProfit[rngId]), playerProfit[rngId], playerBetValue[rngId], playerNumber[rngId]);
+    * check the following logs do not exist for playerBetId and/or playerAddress[rngId] before refunding:
+    * LogResult or LogRefund
+    * if LogResult exists player should use the withdraw pattern playerWithdrawPendingTransactions 
+    */
+    function ownerRefundPlayer(bytes32 originalPlayerBetId, address sendTo, uint originalPlayerProfit, uint originalPlayerBetValue) public 
+		onlyOwner
+    {        
+        /* safely reduce pendingPayouts by playerProfit[rngId] */
+        maxPendingPayouts = safeSub(maxPendingPayouts, originalPlayerProfit);
+        /* send refund */
+        if(!sendTo.send(originalPlayerBetValue)) throw;
+        /* log refunds */
+        LogRefund(originalPlayerBetId, sendTo, originalPlayerBetValue);        
+    }    
+
+    /* only owner address can set emergency pause #1 */
+    function ownerPauseGame(bool newStatus) public 
+		onlyOwner
+    {
+		gamePaused = newStatus;
     }
 
-    /**
-     * @notice Sender redeems cTokens in exchange for a specified amount of underlying asset
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param redeemAmount The amount of underlying to redeem
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function redeemUnderlying(uint redeemAmount) external returns (uint) {
-        return redeemUnderlyingInternal(redeemAmount);
+    /* only owner address can set emergency pause #2 */
+    function ownerPausePayouts(bool newPayoutStatus) public 
+		onlyOwner
+    {
+		payoutsPaused = newPayoutStatus;
+    } 
+
+    /* only owner address can set treasury address */
+    function ownerSetTreasury(address newTreasury) public 
+		onlyOwner
+	{
+        treasury = newTreasury;
+    }         
+
+    /* only owner address can set owner address */
+    function ownerChangeOwner(address newOwner) public 
+		onlyOwner
+	{
+        owner = newOwner;
     }
 
+    /* only owner address can suicide - emergency */
+    function ownerkill() public 
+		onlyOwner
+	{
+		suicide(owner);
+	}  
 
-    /*** Safe Token ***/
 
-    /**
-     * @notice Gets balance of this contract in terms of the underlying
-     * @dev This excludes the value of the current message, if any
-     * @return The quantity of underlying tokens owned by this contract
-     */
-    function getCashPrior() internal view returns (uint) {
-        EIP20Interface token = EIP20Interface(underlying);
-        return token.balanceOf(address(this));
-    }
-
-    /**
-     * @dev Similar to EIP20 transfer, except it handles a False result from `transferFrom` and reverts in that case.
-     *      This will revert due to insufficient balance or insufficient allowance.
-     *      This function returns the actual amount received,
-     *      which may be less than `amount` if there is a fee attached to the transfer.
-     *
-     *      Note: This wrapper safely handles non-standard ERC-20 tokens that do not return a value.
-     *            See here: https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca
-     */
-    function doTransferIn(address from, uint amount) internal returns (uint) {
-        EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
-        uint balanceBefore = EIP20Interface(underlying).balanceOf(address(this));
-        token.transferFrom(from, address(this), amount);
-
-        bool success;
-        assembly {
-            switch returndatasize()
-                case 0 {                       // This is a non-standard ERC-20
-                    success := not(0)          // set success to true
-                }
-                case 32 {                      // This is a compliant ERC-20
-                    returndatacopy(0, 0, 32)
-                    success := mload(0)        // Set `success = returndata` of external call
-                }
-                default {                      // This is an excessively non-compliant ERC-20, revert.
-                    revert(0, 0)
-                }
-        }
-        require(success, "TOKEN_TRANSFER_IN_FAILED");
-
-        // Calculate the amount that was *actually* transferred
-        uint balanceAfter = EIP20Interface(underlying).balanceOf(address(this));
-        require(balanceAfter >= balanceBefore, "TOKEN_TRANSFER_IN_OVERFLOW");
-        return balanceAfter - balanceBefore;   // underflow already checked above, just subtract
-    }
-
-    /**
-     * @dev Similar to EIP20 transfer, except it handles a False success from `transfer` and returns an explanatory
-     *      error code rather than reverting. If caller has not called checked protocol's balance, this may revert due to
-     *      insufficient cash held in this contract. If caller has checked protocol's balance prior to this call, and verified
-     *      it is >= amount, this should not revert in normal conditions.
-     *
-     *      Note: This wrapper safely handles non-standard ERC-20 tokens that do not return a value.
-     *            See here: https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca
-     */
-    function doTransferOut(address payable to, uint amount) internal {
-        EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
-        token.transfer(to, amount);
-
-        bool success;
-        assembly {
-            switch returndatasize()
-                case 0 {                      // This is a non-standard ERC-20
-                    success := not(0)          // set success to true
-                }
-                case 32 {                     // This is a complaint ERC-20
-                    returndatacopy(0, 0, 32)
-                    success := mload(0)        // Set `success = returndata` of external call
-                }
-                default {                     // This is an excessively non-compliant ERC-20, revert.
-                    revert(0, 0)
-                }
-        }
-        require(success, "TOKEN_TRANSFER_OUT_FAILED");
-    }
-}
-
-/**
- * @title Compound's CErc20Delegate Contract
- * @notice CTokens which wrap an EIP-20 underlying and are delegated to
- * @author Compound
- */
-contract CErc20Delegate is CErc20, CDelegateInterface {
-    /**
-     * @notice Construct an empty delegate
-     */
-    constructor() public {}
-
-    /**
-     * @notice Called by the delegator on a delegate to initialize it for duty
-     * @param data The encoded bytes data for any initialization
-     */
-    function _becomeImplementation(bytes memory data) public {
-        // Shh -- currently unused
-        data;
-
-        // Shh -- we don't ever want this hook to be marked pure
-        if (false) {
-            implementation = address(0);
-        }
-
-        require(msg.sender == admin, "only the admin may call _becomeImplementation");
-    }
-
-    /**
-     * @notice Called by the delegator on a delegate to forfeit its responsibility
-     */
-    function _resignImplementation() public {
-        // Shh -- we don't ever want this hook to be marked pure
-        if (false) {
-            implementation = address(0);
-        }
-
-        require(msg.sender == admin, "only the admin may call _resignImplementation");
-    }
 }
